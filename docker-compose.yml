@@ -1,0 +1,26 @@
+services:
+  server:
+    build: ./server
+    env_file:
+      - ./server/.env
+    environment:
+      - PORT=3001
+      - DB_PATH=/app/data/data.sqlite
+    volumes:
+      - server_data:/app/data
+      - server_uploads:/app/uploads
+      - server_backups:/app/backups
+    restart: unless-stopped
+
+  client:
+    build: ./client
+    ports:
+      - "8080:80"
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  server_data:
+  server_uploads:
+  server_backups:

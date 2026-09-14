@@ -1,0 +1,6 @@
+{
+  "watch": ["src"],
+  "ext": "js,json",
+  "ignore": ["src/__tests__/**", "src/db/*.sqlite*"],
+  "exec": "node --env-file=.env src/index.js"
+}

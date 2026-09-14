@@ -1,0 +1,156 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root,
+  [data-style="moderne"] {
+    --background: 214 20% 98%;
+    --foreground: 222 20% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 20% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 20% 12%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214 14% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 214 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    --accent: 214 14% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 214 13% 91%;
+    --input: 214 13% 91%;
+    --ring: 221 83% 53%;
+    --radius: 0.75rem;
+
+    --sidebar-background: 222 47% 10%;
+    --sidebar-foreground: 214 20% 96%;
+    --sidebar-primary: 221 83% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 221 40% 18%;
+    --sidebar-accent-foreground: 214 20% 96%;
+    --sidebar-border: 221 30% 18%;
+    --sidebar-ring: 221 83% 53%;
+
+    --hero-gradient: linear-gradient(135deg, #2563eb 0%, #1d4ed8 60%, #1e3a8a 100%);
+    --card-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  }
+
+  [data-style="riche"] {
+    --background: 30 40% 98%;
+    --foreground: 250 25% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 250 25% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 250 25% 14%;
+    --primary: 262 83% 58%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 280 60% 96%;
+    --secondary-foreground: 262 40% 25%;
+    --muted: 280 40% 96%;
+    --muted-foreground: 260 12% 45%;
+    --accent: 330 80% 96%;
+    --accent-foreground: 330 50% 30%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 270 30% 90%;
+    --input: 270 30% 90%;
+    --ring: 262 83% 58%;
+    --radius: 1rem;
+
+    --sidebar-background: 265 60% 14%;
+    --sidebar-foreground: 270 40% 96%;
+    --sidebar-primary: 322 84% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 265 45% 24%;
+    --sidebar-accent-foreground: 270 40% 96%;
+    --sidebar-border: 265 40% 24%;
+    --sidebar-ring: 322 84% 60%;
+
+    --hero-gradient: linear-gradient(135deg, #7c3aed 0%, #db2777 55%, #f97316 100%);
+    --card-shadow: 0 8px 24px rgba(124, 58, 237, 0.12);
+  }
+
+  [data-style="sombre"] {
+    --background: 224 45% 6%;
+    --foreground: 210 30% 96%;
+    --card: 224 35% 10%;
+    --card-foreground: 210 30% 96%;
+    --popover: 224 35% 10%;
+    --popover-foreground: 210 30% 96%;
+    --primary: 199 89% 58%;
+    --primary-foreground: 224 45% 8%;
+    --secondary: 224 30% 15%;
+    --secondary-foreground: 210 30% 92%;
+    --muted: 224 30% 15%;
+    --muted-foreground: 215 15% 65%;
+    --accent: 224 30% 17%;
+    --accent-foreground: 199 89% 70%;
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 224 25% 20%;
+    --input: 224 25% 20%;
+    --ring: 199 89% 58%;
+    --radius: 0.75rem;
+
+    --sidebar-background: 224 50% 5%;
+    --sidebar-foreground: 210 30% 96%;
+    --sidebar-primary: 199 89% 58%;
+    --sidebar-primary-foreground: 224 45% 8%;
+    --sidebar-accent: 224 35% 14%;
+    --sidebar-accent-foreground: 199 89% 80%;
+    --sidebar-border: 224 30% 16%;
+    --sidebar-ring: 199 89% 58%;
+
+    --hero-gradient: linear-gradient(135deg, #0f172a 0%, #0e7490 70%, #0891b2 100%);
+    --card-shadow: 0 0 0 1px rgba(56, 189, 248, 0.08), 0 8px 24px rgba(2, 6, 23, 0.5);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hero-gradient {
+  background-image: var(--hero-gradient);
+}
+
+.card-elevated {
+  box-shadow: var(--card-shadow);
+}
+
+[data-style="sombre"] .glass {
+  background: hsl(var(--card) / 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius);
+  z-index: 0;
+}
