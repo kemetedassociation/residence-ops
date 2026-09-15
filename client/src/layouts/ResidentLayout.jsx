@@ -33,6 +33,7 @@ export function ResidentLayout() {
   const location = useLocation();
   const queryClient = useQueryClient();
   const [showHint, setShowHint] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const { data: notifications = [] } = useQuery({
     queryKey: ["notifications"],
@@ -66,21 +67,71 @@ export function ResidentLayout() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="safe-top sticky top-0 z-30 flex items-center justify-end gap-3 bg-background/80 px-4 py-2 backdrop-blur">
-        <NavLink to="/notifications" className="relative rounded-full p-2 text-muted-foreground hover:bg-accent">
-          <Bell className="h-5 w-5" />
-          {unread > 0 && (
-            <span className="absolute right-1 top-1 flex h-2 w-2 rounded-full bg-destructive">
-              <span className="absolute h-2 w-2 animate-ping rounded-full bg-destructive" />
-            </span>
-          )}
-        </NavLink>
-        <NavLink to="/profil">
-          <Avatar className="h-8 w-8">
-            <AvatarFallback>{(user?.name || "?").slice(0, 1).toUpperCase()}</AvatarFallback>
-          </Avatar>
-        </NavLink>
+      <header className="safe-top sticky top-0 z-30 flex items-center justify-between gap-3 bg-background/80 px-4 py-2 backdrop-blur">
+        <motion.div
+          className="relative h-12 w-12"
+          animate={showHint ? { scale: [1, 1.08, 1] } : {}}
+          transition={{ duration: 1.2, repeat: showHint ? Infinity : 0 }}
+          onClick={dismissHint}
+        >
+          <AnimatePresence>
+            {showHint && (
+              <motion.button
+                initial={{ opacity: 0, y: -6, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -6, scale: 0.9 }}
+                onClick={dismissHint}
+                className="absolute left-0 top-full z-50 mt-3 w-max rounded-full bg-foreground px-3 py-1.5 text-xs font-medium text-background shadow-lg"
+              >
+                Vos raccourcis sont ici ✨
+                <span className="absolute bottom-full left-4 border-4 border-transparent border-b-foreground" />
+              </motion.button>
+            )}
+          </AnimatePresence>
+          <CircleMenu
+            items={quickLinks}
+            align="start"
+            arc={{ startDeg: 15, endDeg: 105 }}
+            radius={190}
+            isOpen={menuOpen}
+            onOpenChange={setMenuOpen}
+            className="absolute left-0 top-0"
+          />
+        </motion.div>
+
+        <div className="flex items-center gap-3">
+          <NavLink
+            to="/notifications"
+            className="relative rounded-full p-2 text-muted-foreground transition-all duration-150 hover:bg-accent active:scale-90"
+          >
+            <Bell className="h-5 w-5" />
+            {unread > 0 && (
+              <span className="absolute right-1 top-1 flex h-2 w-2 rounded-full bg-destructive">
+                <span className="absolute h-2 w-2 animate-ping rounded-full bg-destructive" />
+              </span>
+            )}
+          </NavLink>
+          <NavLink to="/profil" className="transition-transform duration-150 active:scale-90">
+            <Avatar className="h-8 w-8 ring-2 ring-transparent transition-shadow hover:ring-primary/30">
+              <AvatarFallback>{(user?.name || "?").slice(0, 1).toUpperCase()}</AvatarFallback>
+            </Avatar>
+          </NavLink>
+        </div>
       </header>
+
+      {/* Fond assombri derrière le contenu de page quand le menu de raccourcis est ouvert,
+          pour le détacher visuellement et permettre de le refermer en touchant à côté. */}
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-20 bg-background/70 backdrop-blur-sm"
+            onClick={() => setMenuOpen(false)}
+          />
+        )}
+      </AnimatePresence>
 
       <main className="flex-1 pb-24">
         <AnimatePresence mode="wait">
@@ -96,53 +147,23 @@ export function ResidentLayout() {
         </AnimatePresence>
       </main>
 
-      {/* Floating quick-access menu: consolidates the secondary tabs (carte, restaurant,
-          administration, loisirs, suggestions, installation) so they don't need their own
-          slot in the bottom nav or a dedicated grid in the profile page. */}
-      <div
-        className="fixed inset-x-0 z-40 flex justify-center"
-        style={{ bottom: "calc(4.75rem + env(safe-area-inset-bottom))" }}
-      >
-        <div className="relative">
-          <AnimatePresence>
-            {showHint && (
-              <motion.button
-                initial={{ opacity: 0, y: 6, scale: 0.9 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 6, scale: 0.9 }}
-                onClick={dismissHint}
-                className="absolute bottom-full left-1/2 mb-3 w-max -translate-x-1/2 rounded-full bg-foreground px-3 py-1.5 text-xs font-medium text-background shadow-lg"
-              >
-                Vos raccourcis sont ici ✨
-                <span className="absolute left-1/2 top-full -translate-x-1/2 border-4 border-transparent border-t-foreground" />
-              </motion.button>
-            )}
-          </AnimatePresence>
-          <motion.div
-            animate={showHint ? { scale: [1, 1.08, 1] } : {}}
-            transition={{ duration: 1.2, repeat: showHint ? Infinity : 0 }}
-            onClick={dismissHint}
-          >
-            <CircleMenu items={quickLinks} />
-          </motion.div>
-        </div>
-      </div>
-
-      <nav className="safe-bottom fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background">
+      <nav className="safe-bottom fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex max-w-lg items-center justify-around px-2 py-2">
           {navItems.map(({ to, label, icon: Icon, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              className={({ isActive }) =>
-                `flex flex-col items-center gap-1 rounded-md px-3 py-1.5 text-xs transition-colors ${
-                  isActive ? "text-primary" : "text-muted-foreground"
-                }`
-              }
-            >
-              <Icon className="h-5 w-5" />
-              {label}
+            <NavLink key={to} to={to} end={end} className="relative flex flex-col items-center gap-1 rounded-md px-3 py-1.5 text-xs">
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <motion.span
+                      layoutId="resident-bottom-nav-pill"
+                      className="absolute inset-0 rounded-md bg-primary/10"
+                      transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                    />
+                  )}
+                  <Icon className={`relative z-10 h-5 w-5 transition-colors ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                  <span className={`relative z-10 transition-colors ${isActive ? "text-primary" : "text-muted-foreground"}`}>{label}</span>
+                </>
+              )}
             </NavLink>
           ))}
         </div>

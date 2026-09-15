@@ -24,16 +24,23 @@ const STYLES = {
   },
 };
 
-const pointOnCircle = (i, n, r, cx = 0, cy = 0) => {
-  const theta = (2 * Math.PI * i) / n - Math.PI / 2;
-  const x = cx + r * Math.cos(theta);
-  const y = cy + r * Math.sin(theta) + 0;
-  return { x, y };
+// Sans `arc`, les éléments se répartissent sur un cercle complet (comportement d'origine,
+// pensé pour un déclencheur au centre de l'écran). Avec `arc` ({startDeg, endDeg}, en degrés,
+// 0 = droite, 90 = bas), ils se répartissent uniquement sur cette portion — utile quand le
+// déclencheur est ancré dans un coin, pour que rien ne parte hors de l'écran.
+const pointOnCircle = (i, n, r, arc) => {
+  let theta;
+  if (arc) {
+    const deg = n > 1 ? arc.startDeg + ((arc.endDeg - arc.startDeg) * i) / (n - 1) : (arc.startDeg + arc.endDeg) / 2;
+    theta = (deg * Math.PI) / 180;
+  } else {
+    theta = (2 * Math.PI * i) / n - Math.PI / 2;
+  }
+  return { x: r * Math.cos(theta), y: r * Math.sin(theta) };
 };
 
-function MenuItem({ icon, label, href, index, totalItems, isOpen, onNavigate }) {
-  const { x, y } = pointOnCircle(index, totalItems, CONSTANTS.containerSize / 2);
-  const [hovering, setHovering] = useState(false);
+function MenuItem({ icon, label, href, index, totalItems, isOpen, onNavigate, arc, radius }) {
+  const { x, y } = pointOnCircle(index, totalItems, radius, arc);
   const navigate = useNavigate();
 
   function handleClick(e) {
@@ -65,11 +72,19 @@ function MenuItem({ icon, label, href, index, totalItems, isOpen, onNavigate }) 
           width: CONSTANTS.itemSize - 2,
         }}
         className={STYLES.item.container}
-        onMouseEnter={() => setHovering(true)}
-        onMouseLeave={() => setHovering(false)}
       >
         {icon}
-        {hovering && isOpen && <p className={STYLES.item.label}>{label}</p>}
+        {/* Toujours visible (pas seulement au survol) : au doigt, sur mobile, il n'y a pas de survol. */}
+        {isOpen && (
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: index * CONSTANTS.openStagger + 0.15 }}
+            className={STYLES.item.label}
+          >
+            {label}
+          </motion.p>
+        )}
       </motion.button>
     </a>
   );
@@ -168,8 +183,24 @@ export function CircleMenu({
   items,
   openIcon = <Menu size={18} className="text-background" />,
   closeIcon = <X size={18} className="text-background" />,
+  // `arc` restreint la propagation à une portion de cercle (voir pointOnCircle) — utile
+  // quand le déclencheur est ancré dans un coin plutôt qu'au centre de l'écran.
+  arc,
+  radius = CONSTANTS.containerSize / 2,
+  // "center" (par défaut, comportement d'origine) ou "start" pour ancrer le point d'origine
+  // en haut à gauche de la zone au lieu de son centre.
+  align = "center",
+  // État contrôlable depuis le parent (ex. pour afficher un fond assombri pendant l'ouverture).
+  isOpen: controlledOpen,
+  onOpenChange,
+  className,
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setIsOpen = (value) => {
+    if (controlledOpen === undefined) setInternalOpen(value);
+    onOpenChange?.(value);
+  };
   const animate = useAnimationControls();
 
   const closeAnimationCallback = async () => {
@@ -181,6 +212,8 @@ export function CircleMenu({
     await animate.start({ rotate: 0, filter: "blur(0px)", transition: { duration: 0 } });
   };
 
+  const alignClasses = align === "start" ? "items-start justify-start" : "items-center justify-center place-self-center";
+
   return (
     <div
       style={{
@@ -191,7 +224,7 @@ export function CircleMenu({
         // pointer events on itself explicitly (see MenuTrigger).
         pointerEvents: isOpen ? "auto" : "none",
       }}
-      className="relative flex items-center justify-center place-self-center"
+      className={cn("relative flex", alignClasses, className)}
     >
       <MenuTrigger
         setIsOpen={setIsOpen}
@@ -201,7 +234,10 @@ export function CircleMenu({
         openIcon={openIcon}
         closeIcon={closeIcon}
       />
-      <motion.div animate={animate} className="absolute inset-0 z-0 flex items-center justify-center">
+      <motion.div
+        animate={animate}
+        className={cn("absolute inset-0 z-0 flex", align === "start" ? "items-start justify-start" : "items-center justify-center")}
+      >
         {items.map((item, index) => (
           <MenuItem
             key={`menu-item-${index}`}
@@ -212,6 +248,8 @@ export function CircleMenu({
             totalItems={items.length}
             isOpen={isOpen}
             onNavigate={() => setIsOpen(false)}
+            arc={arc}
+            radius={radius}
           />
         ))}
       </motion.div>
