@@ -7,6 +7,7 @@ import { SwipeableIncidentCard } from "../../components/SwipeableIncidentCard";
 import { IncidentDetailSheet } from "../../components/IncidentDetailSheet";
 import { FeedbackModal } from "../../components/FeedbackModal";
 import { RestrictedBanner } from "../../components/RestrictedBanner";
+import { Skeleton } from "../../components/ui/skeleton";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../lib/api";
 import { useRealtime } from "../../lib/socket";
@@ -29,7 +30,7 @@ export function Feed() {
     }
   });
 
-  const { data: incidents = [] } = useQuery({
+  const { data: incidents = [], isLoading: incidentsLoading } = useQuery({
     queryKey: ["incidents"],
     queryFn: () => api.get("/incidents").then((d) => d.incidents),
   });
@@ -122,10 +123,25 @@ export function Feed() {
         </div>
 
         <div className="space-y-3">
-          {visible.length === 0 && (
-            <p className="py-10 text-center text-sm text-muted-foreground">Aucun incident à afficher pour le moment.</p>
+          {incidentsLoading ? (
+            <>
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3">
+                  <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3.5 w-2/3" />
+                    <Skeleton className="h-3 w-1/3" />
+                  </div>
+                </div>
+              ))}
+            </>
+          ) : (
+            visible.length === 0 && (
+              <p className="py-10 text-center text-sm text-muted-foreground">Aucun incident à afficher pour le moment.</p>
+            )
           )}
-          {visible.map((incident) => (
+          {!incidentsLoading &&
+            visible.map((incident) => (
             <motion.div key={incident.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <SwipeableIncidentCard
                 incident={incident}

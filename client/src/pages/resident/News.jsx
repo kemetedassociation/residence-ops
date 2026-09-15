@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pin, Newspaper } from "lucide-react";
 import { Badge } from "../../components/ui/badge";
+import { Skeleton } from "../../components/ui/skeleton";
 import { api } from "../../lib/api";
 import { useRealtime } from "../../lib/socket";
 import { POST_CATEGORIES, findMeta } from "../../lib/constants";
@@ -9,7 +10,7 @@ import { formatDate } from "../../lib/utils";
 export function News() {
   const queryClient = useQueryClient();
 
-  const { data: posts = [] } = useQuery({
+  const { data: posts = [], isLoading } = useQuery({
     queryKey: ["posts"],
     queryFn: () => api.get("/posts").then((d) => d.posts),
   });
@@ -64,10 +65,25 @@ export function News() {
 
         <div className="space-y-3">
           {pinned.length > 0 && <h2 className="text-sm font-semibold text-muted-foreground">Récentes</h2>}
-          {recent.map((post) => (
-            <PostCard key={post.id} post={post} />
-          ))}
-          {posts.length === 0 && <p className="text-sm text-muted-foreground">Aucune actualité pour le moment.</p>}
+          {isLoading ? (
+            [0, 1].map((i) => (
+              <div key={i} className="overflow-hidden rounded-xl border border-border bg-card">
+                <Skeleton className="h-32 w-full rounded-none" />
+                <div className="space-y-2 p-4">
+                  <Skeleton className="h-3.5 w-1/2" />
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-3 w-2/3" />
+                </div>
+              </div>
+            ))
+          ) : (
+            <>
+              {recent.map((post) => (
+                <PostCard key={post.id} post={post} />
+              ))}
+              {posts.length === 0 && <p className="text-sm text-muted-foreground">Aucune actualité pour le moment.</p>}
+            </>
+          )}
         </div>
       </div>
     </div>

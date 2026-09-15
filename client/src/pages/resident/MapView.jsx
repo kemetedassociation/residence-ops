@@ -9,13 +9,19 @@ import { api } from "../../lib/api";
 import { severityColor } from "../../lib/constants";
 import { cn } from "../../lib/utils";
 
-const OFFSETS = [
-  [0, 0],
-  [0.0009, 0.0012],
-  [-0.0008, 0.0011],
-  [0.0007, -0.001],
-  [-0.0009, -0.0009],
-];
+// Décale chaque bâtiment autour du point GPS de la résidence (celle-ci n'ayant qu'une
+// seule coordonnée pour tous ses bâtiments) selon une spirale de Fibonacci — contrairement
+// à une liste fixe de décalages, ça ne se répète jamais, quel que soit le nombre de
+// bâtiments (une liste à N entrées réutilisées en modulo faisait se superposer deux
+// bâtiments dès qu'il y en avait plus que N).
+const GOLDEN_ANGLE = 137.508 * (Math.PI / 180);
+const BASE_OFFSET_DEG = 0.0009;
+function buildingOffset(index) {
+  if (index === 0) return [0, 0];
+  const angle = index * GOLDEN_ANGLE;
+  const radius = BASE_OFFSET_DEG * Math.sqrt(index);
+  return [radius * Math.sin(angle), radius * Math.cos(angle)];
+}
 
 export function MapView() {
   const [residence, setResidence] = useState(null);
@@ -34,7 +40,7 @@ export function MapView() {
   const buildingsWithPosition = useMemo(() => {
     if (!residence) return [];
     return buildings.map((b, idx) => {
-      const [dLat, dLng] = OFFSETS[idx % OFFSETS.length];
+      const [dLat, dLng] = buildingOffset(idx);
       const activeIncidents = incidents.filter((i) => i.building_id === b.id && i.status !== "resolu" && i.status !== "rejete");
       return {
         ...b,

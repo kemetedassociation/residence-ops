@@ -37,6 +37,12 @@
 
     --hero-gradient: linear-gradient(135deg, #2563eb 0%, #1d4ed8 60%, #1e3a8a 100%);
     --card-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+
+    /* Couleurs de statut/priorité d'incident, communes aux 3 thèmes (non redéfinies
+       plus bas) : utilisées par tailwind.config.js (status.*) et ui/badge.jsx. */
+    --status-urgent: 0 84% 60%;
+    --status-in-progress: 38 92% 50%;
+    --status-resolved: 142 71% 45%;
   }
 
   [data-style="riche"] {

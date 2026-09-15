@@ -14,6 +14,7 @@ import { ThemeSwitcher } from "../../components/ThemeSwitcher";
 import { StatusBadge } from "../../components/StatusBadge";
 import { Badge } from "../../components/ui/badge";
 import { PushNotificationToggle } from "../../components/PushNotificationToggle";
+import { Skeleton } from "../../components/ui/skeleton";
 import { useAuth } from "../../context/AuthContext";
 import { api, getToken } from "../../lib/api";
 import { formatDate } from "../../lib/utils";
@@ -36,7 +37,7 @@ export function Profile() {
   });
   const [saving, setSaving] = useState(false);
 
-  const { data: myIncidents = [] } = useQuery({
+  const { data: myIncidents = [], isLoading: incidentsLoading } = useQuery({
     queryKey: ["incidents", "mine"],
     queryFn: () => api.get("/incidents?mine=true").then((d) => d.incidents),
   });
@@ -112,37 +113,51 @@ export function Profile() {
 
       <Card>
         <CardContent className="space-y-4 p-5">
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-2 text-sm font-medium">
-              <Award className="h-4 w-4" style={{ color: stats.tier.color }} />
-              Score de fiabilité
-            </span>
-            <span className="text-sm font-semibold" style={{ color: stats.tier.color }}>
-              {stats.tier.label}
-            </span>
-          </div>
-          <Progress value={stats.ratio * 100} indicatorClassName="" />
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div>
-              <ListChecks className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
-              <p className="font-bold">{stats.total}</p>
-              <p className="text-[11px] text-muted-foreground">Signalés</p>
+          {incidentsLoading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-4 w-1/2" />
+              <Skeleton className="h-2 w-full" />
+              <div className="grid grid-cols-3 gap-2">
+                {[0, 1, 2].map((i) => (
+                  <Skeleton key={i} className="h-14 w-full" />
+                ))}
+              </div>
             </div>
-            <div>
-              <Clock className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
-              <p className="font-bold">{stats.enCours}</p>
-              <p className="text-[11px] text-muted-foreground">En cours</p>
-            </div>
-            <div>
-              <CheckCircle2 className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
-              <p className="font-bold">{stats.resolved}</p>
-              <p className="text-[11px] text-muted-foreground">Résolus</p>
-            </div>
-          </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2 text-sm font-medium">
+                  <Award className="h-4 w-4" style={{ color: stats.tier.color }} />
+                  Score de fiabilité
+                </span>
+                <span className="text-sm font-semibold" style={{ color: stats.tier.color }}>
+                  {stats.tier.label}
+                </span>
+              </div>
+              <Progress value={stats.ratio * 100} indicatorClassName="" />
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div>
+                  <ListChecks className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
+                  <p className="font-bold">{stats.total}</p>
+                  <p className="text-[11px] text-muted-foreground">Signalés</p>
+                </div>
+                <div>
+                  <Clock className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
+                  <p className="font-bold">{stats.enCours}</p>
+                  <p className="text-[11px] text-muted-foreground">En cours</p>
+                </div>
+                <div>
+                  <CheckCircle2 className="mx-auto mb-1 h-4 w-4 text-muted-foreground" />
+                  <p className="font-bold">{stats.resolved}</p>
+                  <p className="text-[11px] text-muted-foreground">Résolus</p>
+                </div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
-      {myIncidents.length > 0 && (
+      {!incidentsLoading && myIncidents.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Mes signalements</CardTitle>
@@ -217,7 +232,7 @@ export function Profile() {
 
       <p className="text-center text-xs text-muted-foreground">
         Retrouvez Ma carte, Restaurant, Administration, Loisirs, la Boîte à idées et l'installation de l'app depuis le
-        bouton ✨ en bas de l'écran.
+        bouton ☰ en haut à gauche de l'écran.
       </p>
 
       <Card>
