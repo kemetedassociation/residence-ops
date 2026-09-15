@@ -1,0 +1,44 @@
+# Blueprint Render : un seul service Node qui sert à la fois l'API et le site
+# (le serveur Express sert les fichiers statiques du client une fois buildé —
+# voir server/src/app.js). Évite tout problème de proxy entre deux services.
+#
+# Utilisation : sur render.com, "New +" → "Blueprint" → connecter ce dépôt GitHub.
+# Après le premier déploiement, lancer UNE SEULE FOIS (Shell du service, dans le
+# dashboard Render) : npm run seed:prod --workspace=server
+# ⚠️ Ne jamais relancer le seed après — il efface toutes les données existantes.
+
+services:
+  - type: web
+    name: residence-ops
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build --workspace=client
+    startCommand: npm run start:prod --workspace=server
+    healthCheckPath: /api/health
+    disk:
+      name: residence-ops-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DB_PATH
+        value: /data/data.sqlite
+      - key: JWT_SECRET
+        generateValue: true
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        value: mailto:contact@residence-ops.fr
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        value: "Résidence Ops <no-reply@residence-ops.fr>"

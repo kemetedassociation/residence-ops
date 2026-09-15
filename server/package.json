@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "nodemon",
     "start": "node --env-file=.env src/index.js",
+    "start:prod": "node src/index.js",
     "seed": "node --env-file=.env src/db/seed.js",
+    "seed:prod": "node src/db/seed.js",
     "test": "vitest run",
     "backup": "node src/db/backup.js"
   },
