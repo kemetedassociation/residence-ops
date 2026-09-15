@@ -31,7 +31,7 @@ const TABLES = [
   "residences",
 ];
 
-function seed() {
+export function seed() {
   db.pragma("foreign_keys = OFF");
   TABLES.forEach((t) => db.prepare(`DELETE FROM ${t}`).run());
   db.pragma("foreign_keys = ON");
@@ -523,5 +523,9 @@ function seed() {
   console.log("Résident (en attente): sofia.rossi@residence-ops.fr / resident123");
 }
 
-seed();
-db.close();
+// Exécuté seulement quand ce fichier est lancé directement (npm run seed / seed:prod),
+// pas quand il est importé par le serveur pour un seed automatique au démarrage.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  seed();
+  db.close();
+}
