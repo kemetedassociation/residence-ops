@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate } from "react-router-dom";
 import { User } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
+import { PasswordInput } from "../../components/ui/password-input";
 import { Label } from "../../components/ui/label";
 import { Button } from "../../components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
@@ -94,7 +95,7 @@ export function ResidentSignup() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="signup-password">Mot de passe</Label>
-                  <Input id="signup-password" type="password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+                  <PasswordInput id="signup-password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="phone">Téléphone</Label>
@@ -167,6 +168,8 @@ export function ResidentSignup() {
                   <Input
                     id="login-email"
                     type="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
                     required
                     value={loginForm.email}
                     onChange={(e) => setLoginForm({ ...loginForm, email: e.target.value })}
@@ -175,9 +178,8 @@ export function ResidentSignup() {
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="login-password">Mot de passe</Label>
-                  <Input
+                  <PasswordInput
                     id="login-password"
-                    type="password"
                     required
                     value={loginForm.password}
                     onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
