@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
-import { CheckCircle2, Clock, ListChecks } from "lucide-react";
+import { CheckCircle2, Clock, ListChecks, Wallet, UtensilsCrossed, FileText, PartyPopper, Lightbulb, Download } from "lucide-react";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../components/ui/select";
 import { SwipeableIncidentCard } from "../../components/SwipeableIncidentCard";
 import { IncidentDetailSheet } from "../../components/IncidentDetailSheet";
@@ -14,6 +15,15 @@ import { useRealtime } from "../../lib/socket";
 import { INCIDENT_STATUSES } from "../../lib/constants";
 
 const DISMISSED_KEY = "residence_ops_dismissed";
+
+const shortcuts = [
+  { to: "/ma-carte", label: "Ma carte", icon: Wallet },
+  { to: "/restaurant", label: "Restaurant", icon: UtensilsCrossed },
+  { to: "/administration", label: "Administration", icon: FileText },
+  { to: "/loisirs", label: "Loisirs", icon: PartyPopper },
+  { to: "/suggestions", label: "Idées", icon: Lightbulb },
+  { to: "/telecharger", label: "Installer", icon: Download },
+];
 
 export function Feed() {
   const { user } = useAuth();
@@ -91,6 +101,21 @@ export function Feed() {
       </div>
 
       <div className="mx-auto -mt-4 max-w-lg space-y-4 px-4">
+        <div className="hide-scrollbar flex gap-3 overflow-x-auto rounded-xl bg-card p-3 card-elevated">
+          {shortcuts.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className="flex shrink-0 flex-col items-center gap-1.5 rounded-lg px-2.5 py-1 text-center transition-transform active:scale-95"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Icon className="h-5 w-5" />
+              </span>
+              <span className="w-16 truncate text-[11px] font-medium text-muted-foreground">{label}</span>
+            </NavLink>
+          ))}
+        </div>
+
         {user?.lease_status !== "verified" && <RestrictedBanner compact />}
 
         <div className="flex gap-2 rounded-xl bg-card p-2 card-elevated">

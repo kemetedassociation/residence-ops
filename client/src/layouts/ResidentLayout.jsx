@@ -1,15 +1,15 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Home, MegaphoneIcon, Map, Newspaper, User, Bell, Wallet, UtensilsCrossed, FileText, PartyPopper, Lightbulb, Download } from "lucide-react";
+import { Menu, Home, MegaphoneIcon, Map, Newspaper, User, Bell, Wallet, UtensilsCrossed, FileText, PartyPopper, Lightbulb, Download } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { Avatar, AvatarFallback } from "../components/ui/avatar";
-import { CircleMenu } from "../components/ui/circle-menu";
+import { NavDrawer } from "../components/ui/nav-drawer";
 import { api } from "../lib/api";
 import { useRealtime } from "../lib/socket";
 
-const navItems = [
+const mainItems = [
   { to: "/", label: "Accueil", icon: Home, end: true },
   { to: "/signaler", label: "Signaler", icon: MegaphoneIcon },
   { to: "/carte", label: "Carte", icon: Map },
@@ -17,22 +17,25 @@ const navItems = [
   { to: "/profil", label: "Profil", icon: User },
 ];
 
-const quickLinks = [
-  { label: "Ma carte", icon: <Wallet size={16} />, href: "/ma-carte" },
-  { label: "Restaurant", icon: <UtensilsCrossed size={16} />, href: "/restaurant" },
-  { label: "Administration", icon: <FileText size={16} />, href: "/administration" },
-  { label: "Loisirs", icon: <PartyPopper size={16} />, href: "/loisirs" },
-  { label: "Boîte à idées", icon: <Lightbulb size={16} />, href: "/suggestions" },
-  { label: "Installer l'app", icon: <Download size={16} />, href: "/telecharger" },
+const shortcutItems = [
+  { to: "/ma-carte", label: "Ma carte", icon: Wallet },
+  { to: "/restaurant", label: "Restaurant", icon: UtensilsCrossed },
+  { to: "/administration", label: "Administration", icon: FileText },
+  { to: "/loisirs", label: "Loisirs", icon: PartyPopper },
+  { to: "/suggestions", label: "Boîte à idées", icon: Lightbulb },
+  { to: "/telecharger", label: "Installer l'app", icon: Download },
 ];
 
-const HINT_KEY = "residence_ops_quicklinks_hint_seen";
+function sectionTitle(pathname) {
+  const all = [...mainItems, ...shortcutItems];
+  const match = all.find((item) => (item.end ? pathname === item.to : pathname.startsWith(item.to)));
+  return match?.label || "Résidence Ops";
+}
 
 export function ResidentLayout() {
   const { user } = useAuth();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const [showHint, setShowHint] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const { data: notifications = [] } = useQuery({
@@ -43,61 +46,30 @@ export function ResidentLayout() {
 
   const unread = notifications.filter((n) => !n.is_read).length;
 
-  useEffect(() => {
-    let seen = false;
-    try {
-      seen = !!localStorage.getItem(HINT_KEY);
-    } catch {
-      // ignore
-    }
-    if (!seen) {
-      const timer = setTimeout(() => setShowHint(true), 900);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-  function dismissHint() {
-    setShowHint(false);
-    try {
-      localStorage.setItem(HINT_KEY, "1");
-    } catch {
-      // ignore
-    }
-  }
-
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="safe-top sticky top-0 z-30 flex items-center justify-between gap-3 bg-background/80 px-4 py-2 backdrop-blur">
-        <motion.div
-          className="relative h-12 w-12"
-          animate={showHint ? { scale: [1, 1.08, 1] } : {}}
-          transition={{ duration: 1.2, repeat: showHint ? Infinity : 0 }}
-          onClick={dismissHint}
-        >
-          <AnimatePresence>
-            {showHint && (
-              <motion.button
-                initial={{ opacity: 0, y: -6, scale: 0.9 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -6, scale: 0.9 }}
-                onClick={dismissHint}
-                className="absolute left-0 top-full z-50 mt-3 w-max rounded-full bg-foreground px-3 py-1.5 text-xs font-medium text-background shadow-lg"
-              >
-                Vos raccourcis sont ici ✨
-                <span className="absolute bottom-full left-4 border-4 border-transparent border-b-foreground" />
-              </motion.button>
-            )}
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setMenuOpen(true)}
+            className="rounded-full p-2 text-foreground transition-all duration-150 hover:bg-accent active:scale-90"
+            aria-label="Ouvrir le menu"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+          <AnimatePresence mode="wait">
+            <motion.span
+              key={location.pathname}
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.15 }}
+              className="text-sm font-semibold"
+            >
+              {sectionTitle(location.pathname)}
+            </motion.span>
           </AnimatePresence>
-          <CircleMenu
-            items={quickLinks}
-            align="start"
-            arc={{ startDeg: 15, endDeg: 105 }}
-            radius={190}
-            isOpen={menuOpen}
-            onOpenChange={setMenuOpen}
-            className="absolute left-0 top-0"
-          />
-        </motion.div>
+        </div>
 
         <div className="flex items-center gap-3">
           <NavLink
@@ -119,21 +91,9 @@ export function ResidentLayout() {
         </div>
       </header>
 
-      {/* Fond assombri derrière le contenu de page quand le menu de raccourcis est ouvert,
-          pour le détacher visuellement et permettre de le refermer en touchant à côté. */}
-      <AnimatePresence>
-        {menuOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-20 bg-background/70 backdrop-blur-sm"
-            onClick={() => setMenuOpen(false)}
-          />
-        )}
-      </AnimatePresence>
+      <NavDrawer open={menuOpen} onOpenChange={setMenuOpen} mainItems={mainItems} shortcutItems={shortcutItems} />
 
-      <main className="flex-1 pb-24">
+      <main className="flex-1 pb-10">
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
@@ -146,28 +106,6 @@ export function ResidentLayout() {
           </motion.div>
         </AnimatePresence>
       </main>
-
-      <nav className="safe-bottom fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex max-w-lg items-center justify-around px-2 py-2">
-          {navItems.map(({ to, label, icon: Icon, end }) => (
-            <NavLink key={to} to={to} end={end} className="relative flex flex-col items-center gap-1 rounded-md px-3 py-1.5 text-xs">
-              {({ isActive }) => (
-                <>
-                  {isActive && (
-                    <motion.span
-                      layoutId="resident-bottom-nav-pill"
-                      className="absolute inset-0 rounded-md bg-primary/10"
-                      transition={{ type: "spring", stiffness: 420, damping: 32 }}
-                    />
-                  )}
-                  <Icon className={`relative z-10 h-5 w-5 transition-colors ${isActive ? "text-primary" : "text-muted-foreground"}`} />
-                  <span className={`relative z-10 transition-colors ${isActive ? "text-primary" : "text-muted-foreground"}`}>{label}</span>
-                </>
-              )}
-            </NavLink>
-          ))}
-        </div>
-      </nav>
     </div>
   );
 }
