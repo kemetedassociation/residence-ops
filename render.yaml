@@ -2,6 +2,14 @@
 # (le serveur Express sert les fichiers statiques du client une fois buildé —
 # voir server/src/app.js). Évite tout problème de proxy entre deux services.
 #
+# ⚠️ Plan gratuit : pas de disque persistant (non supporté par Render en free).
+# La base de données vit sur le système de fichiers du conteneur : elle survit
+# aux simples mises en veille/réveil (inactivité), mais est RÉINITIALISÉE à
+# chaque nouveau déploiement (push sur main, ou changement du Blueprint).
+# Pour de vrais résidents sur le long terme, il faudra passer sur un plan payant
+# avec disque persistant (voir le champ `disk` en commentaire plus bas) — le
+# plan gratuit convient pour une démonstration, pas pour une exploitation réelle.
+#
 # Utilisation : sur render.com, "New +" → "Blueprint" → connecter ce dépôt GitHub.
 # Après le premier déploiement, lancer UNE SEULE FOIS (Shell du service, dans le
 # dashboard Render) : npm run seed:prod --workspace=server
@@ -15,15 +23,13 @@ services:
     buildCommand: npm install && npm run build --workspace=client
     startCommand: npm run start:prod --workspace=server
     healthCheckPath: /api/health
-    disk:
-      name: residence-ops-data
-      mountPath: /data
-      sizeGB: 1
+    # disk:                        # Décommenter en passant sur un plan payant
+    #   name: residence-ops-data   # pour une vraie persistance des données.
+    #   mountPath: /data
+    #   sizeGB: 1
     envVars:
       - key: PORT
         value: 10000
-      - key: DB_PATH
-        value: /data/data.sqlite
       - key: JWT_SECRET
         generateValue: true
       - key: VAPID_PUBLIC_KEY
