@@ -25,7 +25,7 @@ function DrawerLink({ to, label, icon: Icon, end, onNavigate }) {
 // Panneau de navigation unique, ouvert depuis le bouton ☰ de l'en-tête : regroupe toutes
 // les sections de l'app (principales + raccourcis) au même endroit, plutôt que de les
 // répartir entre une barre du bas et un menu séparé.
-export function NavDrawer({ open, onOpenChange, mainItems, shortcutItems }) {
+export function NavDrawer({ open, onOpenChange, shortcutItems }) {
   function close() {
     onOpenChange(false);
   }
@@ -51,7 +51,7 @@ export function NavDrawer({ open, onOpenChange, mainItems, shortcutItems }) {
             className="safe-top safe-bottom fixed inset-y-0 left-0 z-50 flex w-[85%] max-w-xs flex-col bg-card shadow-2xl"
           >
             <div className="flex items-center justify-between px-4 py-3">
-              <span className="text-sm font-semibold text-muted-foreground">Menu</span>
+              <span className="text-sm font-semibold text-muted-foreground">Raccourcis</span>
               <button
                 onClick={close}
                 className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent active:scale-90"
@@ -61,20 +61,10 @@ export function NavDrawer({ open, onOpenChange, mainItems, shortcutItems }) {
               </button>
             </div>
 
-            <div className="flex-1 space-y-6 overflow-y-auto px-3 pb-6">
-              <div className="space-y-1">
-                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Principal</p>
-                {mainItems.map((item) => (
-                  <DrawerLink key={item.to} {...item} onNavigate={close} />
-                ))}
-              </div>
-
-              <div className="space-y-1">
-                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Raccourcis</p>
-                {shortcutItems.map((item) => (
-                  <DrawerLink key={item.to} {...item} onNavigate={close} />
-                ))}
-              </div>
+            <div className="flex-1 space-y-1 overflow-y-auto px-3 pb-6">
+              {shortcutItems.map((item) => (
+                <DrawerLink key={item.to} {...item} onNavigate={close} />
+              ))}
             </div>
           </motion.div>
         </>

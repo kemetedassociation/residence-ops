@@ -2,7 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink } from "react-router-dom";
 import { motion } from "framer-motion";
-import { CheckCircle2, Clock, ListChecks, Wallet, UtensilsCrossed, FileText, PartyPopper, Lightbulb, Download } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  ListChecks,
+  Wallet,
+  UtensilsCrossed,
+  FileText,
+  PartyPopper,
+  MegaphoneIcon,
+  ChevronRight,
+  Newspaper,
+} from "lucide-react";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../components/ui/select";
 import { SwipeableIncidentCard } from "../../components/SwipeableIncidentCard";
 import { IncidentDetailSheet } from "../../components/IncidentDetailSheet";
@@ -13,16 +24,15 @@ import { useAuth } from "../../context/AuthContext";
 import { api } from "../../lib/api";
 import { useRealtime } from "../../lib/socket";
 import { INCIDENT_STATUSES } from "../../lib/constants";
+import { formatDate } from "../../lib/utils";
 
 const DISMISSED_KEY = "residence_ops_dismissed";
 
-const shortcuts = [
+const quickActions = [
   { to: "/ma-carte", label: "Ma carte", icon: Wallet },
   { to: "/restaurant", label: "Restaurant", icon: UtensilsCrossed },
   { to: "/administration", label: "Administration", icon: FileText },
   { to: "/loisirs", label: "Loisirs", icon: PartyPopper },
-  { to: "/suggestions", label: "Idées", icon: Lightbulb },
-  { to: "/telecharger", label: "Installer", icon: Download },
 ];
 
 export function Feed() {
@@ -48,6 +58,11 @@ export function Feed() {
     queryKey: ["buildings"],
     queryFn: () => api.get("/residences").then((d) => d.buildings),
   });
+  const { data: posts = [] } = useQuery({
+    queryKey: ["posts"],
+    queryFn: () => api.get("/posts").then((d) => d.posts),
+  });
+  const featuredPost = useMemo(() => posts.find((p) => p.pinned) || posts[0] || null, [posts]);
 
   useRealtime(["incident:created", "incident:updated", "incident:deleted"], () => {
     queryClient.invalidateQueries({ queryKey: ["incidents"] });
@@ -82,41 +97,77 @@ export function Feed() {
 
   return (
     <div className="pb-6">
-      <div className="hero-gradient relative overflow-hidden px-4 pb-8 pt-6 text-white">
-        <p className="text-sm opacity-90">Bonjour,</p>
-        <h1 className="text-2xl font-bold">{user?.name?.split(" ")[0]} 👋</h1>
-        <div className="mt-5 grid grid-cols-3 gap-2">
+      <div className="hero-gradient relative overflow-hidden px-4 pb-10 pt-6 text-white">
+        <p className="text-sm opacity-90">Bonjour 👋</p>
+        <h1 className="text-2xl font-bold leading-tight">
+          {user?.name?.split(" ")[0]},<br />bienvenue chez vous
+        </h1>
+        <NavLink
+          to="/signaler"
+          className="mt-5 flex items-center justify-between rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-foreground shadow-lg transition-transform active:scale-[0.98]"
+        >
+          <span className="flex items-center gap-2">
+            <MegaphoneIcon className="h-4 w-4 text-primary" />
+            Signaler un incident
+          </span>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </NavLink>
+      </div>
+
+      <div className="mx-auto -mt-6 max-w-lg space-y-4 px-4">
+        <div className="grid grid-cols-4 gap-2 rounded-2xl bg-card p-3 card-elevated">
+          {quickActions.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className="flex flex-col items-center gap-1.5 rounded-xl px-1 py-1.5 text-center transition-transform active:scale-95"
+            >
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+                <Icon className="h-5 w-5" />
+              </span>
+              <span className="w-full truncate text-[11px] font-medium text-muted-foreground">{label}</span>
+            </NavLink>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
           {[
             { label: "Actifs", value: stats.active, icon: ListChecks },
             { label: "En cours", value: stats.enCours, icon: Clock },
             { label: "Résolus", value: stats.resolus, icon: CheckCircle2 },
           ].map(({ label, value, icon: Icon }) => (
-            <div key={label} className="rounded-xl bg-white/15 p-3 text-center backdrop-blur">
-              <Icon className="mx-auto mb-1 h-4 w-4" />
+            <div key={label} className="rounded-xl bg-card p-3 text-center card-elevated">
+              <Icon className="mx-auto mb-1 h-4 w-4 text-primary" />
               <p className="text-lg font-bold">{value}</p>
-              <p className="text-[11px] opacity-90">{label}</p>
+              <p className="text-[11px] text-muted-foreground">{label}</p>
             </div>
           ))}
         </div>
-      </div>
 
-      <div className="mx-auto -mt-4 max-w-lg space-y-4 px-4">
-        <div className="hide-scrollbar flex gap-3 overflow-x-auto rounded-xl bg-card p-3 card-elevated">
-          {shortcuts.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className="flex shrink-0 flex-col items-center gap-1.5 rounded-lg px-2.5 py-1 text-center transition-transform active:scale-95"
-            >
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary/10 text-primary">
-                <Icon className="h-5 w-5" />
-              </span>
-              <span className="w-16 truncate text-[11px] font-medium text-muted-foreground">{label}</span>
-            </NavLink>
-          ))}
-        </div>
+        {featuredPost && (
+          <NavLink
+            to="/actualites"
+            className="flex items-center gap-3 overflow-hidden rounded-2xl bg-card card-elevated"
+          >
+            {featuredPost.cover_image_url ? (
+              <img src={featuredPost.cover_image_url} alt="" className="h-20 w-20 shrink-0 object-cover" />
+            ) : (
+              <div className="flex h-20 w-20 shrink-0 items-center justify-center bg-primary/10 text-primary">
+                <Newspaper className="h-6 w-6" />
+              </div>
+            )}
+            <div className="min-w-0 flex-1 py-2 pr-3">
+              <p className="text-[11px] font-medium text-primary">À la une</p>
+              <p className="truncate text-sm font-semibold">{featuredPost.title}</p>
+              <p className="text-xs text-muted-foreground">{formatDate(featuredPost.published_at)}</p>
+            </div>
+            <ChevronRight className="mr-3 h-4 w-4 shrink-0 text-muted-foreground" />
+          </NavLink>
+        )}
 
         {user?.lease_status !== "verified" && <RestrictedBanner compact />}
+
+        <h2 className="pt-1 text-sm font-semibold text-muted-foreground">Suivi des signalements</h2>
 
         <div className="flex gap-2 rounded-xl bg-card p-2 card-elevated">
           <Select value={statusFilter} onValueChange={setStatusFilter}>

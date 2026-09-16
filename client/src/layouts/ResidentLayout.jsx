@@ -9,13 +9,17 @@ import { NavDrawer } from "../components/ui/nav-drawer";
 import { api } from "../lib/api";
 import { useRealtime } from "../lib/socket";
 
-const mainItems = [
+// Barre du bas : 4 onglets classiques + un bouton central surélevé pour l'action la plus
+// fréquente (signaler), à l'image des apps mobiles natives (voir capture de référence).
+const tabItems = [
   { to: "/", label: "Accueil", icon: Home, end: true },
-  { to: "/signaler", label: "Signaler", icon: MegaphoneIcon },
   { to: "/carte", label: "Carte", icon: Map },
+];
+const tabItemsRight = [
   { to: "/actualites", label: "Actualités", icon: Newspaper },
   { to: "/profil", label: "Profil", icon: User },
 ];
+const reportItem = { to: "/signaler", label: "Signaler", icon: MegaphoneIcon };
 
 const shortcutItems = [
   { to: "/ma-carte", label: "Ma carte", icon: Wallet },
@@ -26,10 +30,24 @@ const shortcutItems = [
   { to: "/telecharger", label: "Installer l'app", icon: Download },
 ];
 
-function sectionTitle(pathname) {
-  const all = [...mainItems, ...shortcutItems];
-  const match = all.find((item) => (item.end ? pathname === item.to : pathname.startsWith(item.to)));
-  return match?.label || "Résidence Ops";
+function TabLink({ to, label, icon: Icon, end }) {
+  return (
+    <NavLink key={to} to={to} end={end} className="relative flex flex-1 flex-col items-center gap-1 py-2 text-xs">
+      {({ isActive }) => (
+        <>
+          {isActive && (
+            <motion.span
+              layoutId="resident-bottom-nav-pill"
+              className="absolute inset-x-2 inset-y-0.5 rounded-lg bg-primary/10"
+              transition={{ type: "spring", stiffness: 420, damping: 32 }}
+            />
+          )}
+          <Icon className={`relative z-10 h-5 w-5 transition-colors ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+          <span className={`relative z-10 transition-colors ${isActive ? "text-primary" : "text-muted-foreground"}`}>{label}</span>
+        </>
+      )}
+    </NavLink>
+  );
 }
 
 export function ResidentLayout() {
@@ -49,27 +67,13 @@ export function ResidentLayout() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="safe-top sticky top-0 z-30 flex items-center justify-between gap-3 bg-background/80 px-4 py-2 backdrop-blur">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setMenuOpen(true)}
-            className="rounded-full p-2 text-foreground transition-all duration-150 hover:bg-accent active:scale-90"
-            aria-label="Ouvrir le menu"
-          >
-            <Menu className="h-5 w-5" />
-          </button>
-          <AnimatePresence mode="wait">
-            <motion.span
-              key={location.pathname}
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4 }}
-              transition={{ duration: 0.15 }}
-              className="text-sm font-semibold"
-            >
-              {sectionTitle(location.pathname)}
-            </motion.span>
-          </AnimatePresence>
-        </div>
+        <button
+          onClick={() => setMenuOpen(true)}
+          className="rounded-full p-2 text-foreground transition-all duration-150 hover:bg-accent active:scale-90"
+          aria-label="Ouvrir le menu des raccourcis"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
 
         <div className="flex items-center gap-3">
           <NavLink
@@ -91,9 +95,9 @@ export function ResidentLayout() {
         </div>
       </header>
 
-      <NavDrawer open={menuOpen} onOpenChange={setMenuOpen} mainItems={mainItems} shortcutItems={shortcutItems} />
+      <NavDrawer open={menuOpen} onOpenChange={setMenuOpen} shortcutItems={shortcutItems} />
 
-      <main className="flex-1 pb-10">
+      <main className="flex-1 pb-24">
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
@@ -106,6 +110,29 @@ export function ResidentLayout() {
           </motion.div>
         </AnimatePresence>
       </main>
+
+      <nav className="safe-bottom fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/95 backdrop-blur">
+        <div className="mx-auto flex max-w-lg items-center px-2">
+          {tabItems.map((item) => (
+            <TabLink key={item.to} {...item} />
+          ))}
+
+          <div className="relative flex flex-1 flex-col items-center justify-end">
+            <NavLink
+              to={reportItem.to}
+              className="absolute -top-6 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg ring-4 ring-background transition-transform active:scale-95"
+              aria-label={reportItem.label}
+            >
+              <reportItem.icon className="h-6 w-6" />
+            </NavLink>
+            <span className="pb-2 pt-9 text-xs text-muted-foreground">{reportItem.label}</span>
+          </div>
+
+          {tabItemsRight.map((item) => (
+            <TabLink key={item.to} {...item} />
+          ))}
+        </div>
+      </nav>
     </div>
   );
 }
