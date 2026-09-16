@@ -1,4 +1,4 @@
-const CACHE_NAME = "residence-ops-shell-v1";
+const CACHE_NAME = "residence-ops-shell-v2";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -41,16 +41,21 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET" || event.request.url.includes("/api/") || event.request.url.includes("/socket.io/")) {
     return;
   }
+  // Priorité réseau (pas cache-first) : l'app est déployée souvent, et servir une page/JS
+  // périmé pendant qu'une version plus récente attend en arrière-plan a causé de la
+  // confusion (page figée jusqu'à un rechargement manuel). Le cache ne sert que de secours
+  // hors-ligne, jamais en priorité.
   event.respondWith(
     caches.open(CACHE_NAME).then(async (cache) => {
-      const cached = await cache.match(event.request);
-      const network = fetch(event.request)
-        .then((response) => {
-          if (response.ok) cache.put(event.request, response.clone());
-          return response;
-        })
-        .catch(() => cached);
-      return cached || network;
+      try {
+        const response = await fetch(event.request);
+        if (response.ok) cache.put(event.request, response.clone());
+        return response;
+      } catch {
+        const cached = await cache.match(event.request);
+        if (cached) return cached;
+        throw new Error("Réseau indisponible et rien en cache pour cette ressource.");
+      }
     })
   );
 });

@@ -329,7 +329,7 @@ export function seed() {
     category: "travaux",
     pinned: 1,
     published: 1,
-    cover_image_url: null,
+    cover_image_url: "https://images.unsplash.com/photo-1493397212122-2b85dda8106b?w=1200&q=70",
     author_id: manager.id,
     published_at: daysAgo(2),
   });
@@ -340,7 +340,7 @@ export function seed() {
     category: "reglementation",
     pinned: 0,
     published: 1,
-    cover_image_url: null,
+    cover_image_url: "https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=1200&q=70",
     author_id: manager.id,
     published_at: daysAgo(10),
   });
@@ -351,7 +351,7 @@ export function seed() {
     category: "travaux",
     pinned: 0,
     published: 1,
-    cover_image_url: null,
+    cover_image_url: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=1200&q=70",
     author_id: manager.id,
     published_at: daysAgo(15),
   });
@@ -362,7 +362,7 @@ export function seed() {
     category: "information",
     pinned: 0,
     published: 1,
-    cover_image_url: null,
+    cover_image_url: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=1200&q=70",
     author_id: manager.id,
     published_at: daysAgo(30),
   });

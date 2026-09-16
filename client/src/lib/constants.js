@@ -98,3 +98,8 @@ export function severityColor(count) {
   if (count <= 2) return "#f59e0b";
   return "#ef4444";
 }
+
+// Image générique utilisée quand une actualité n'a pas encore de photo de couverture,
+// pour que la page ne paraisse jamais "vide" même avant que la gestion n'ajoute ses propres
+// visuels via l'upload existant.
+export const DEFAULT_POST_IMAGE = "https://images.unsplash.com/photo-1493397212122-2b85dda8106b?w=1200&q=70";

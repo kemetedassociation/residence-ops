@@ -12,7 +12,6 @@ import {
   PartyPopper,
   MegaphoneIcon,
   ChevronRight,
-  Newspaper,
 } from "lucide-react";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../components/ui/select";
 import { SwipeableIncidentCard } from "../../components/SwipeableIncidentCard";
@@ -23,7 +22,7 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../lib/api";
 import { useRealtime } from "../../lib/socket";
-import { INCIDENT_STATUSES } from "../../lib/constants";
+import { INCIDENT_STATUSES, DEFAULT_POST_IMAGE } from "../../lib/constants";
 import { formatDate } from "../../lib/utils";
 
 const DISMISSED_KEY = "residence_ops_dismissed";
@@ -149,13 +148,11 @@ export function Feed() {
             to="/actualites"
             className="flex items-center gap-3 overflow-hidden rounded-2xl bg-card card-elevated"
           >
-            {featuredPost.cover_image_url ? (
-              <img src={featuredPost.cover_image_url} alt="" className="h-20 w-20 shrink-0 object-cover" />
-            ) : (
-              <div className="flex h-20 w-20 shrink-0 items-center justify-center bg-primary/10 text-primary">
-                <Newspaper className="h-6 w-6" />
-              </div>
-            )}
+            <img
+              src={featuredPost.cover_image_url || DEFAULT_POST_IMAGE}
+              alt=""
+              className="h-20 w-20 shrink-0 object-cover"
+            />
             <div className="min-w-0 flex-1 py-2 pr-3">
               <p className="text-[11px] font-medium text-primary">À la une</p>
               <p className="truncate text-sm font-semibold">{featuredPost.title}</p>
