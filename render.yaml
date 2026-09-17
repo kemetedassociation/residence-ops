@@ -2,34 +2,46 @@
 # (le serveur Express sert les fichiers statiques du client une fois buildé —
 # voir server/src/app.js). Évite tout problème de proxy entre deux services.
 #
-# ⚠️ Plan gratuit : pas de disque persistant (non supporté par Render en free).
-# La base de données vit sur le système de fichiers du conteneur : elle survit
-# aux simples mises en veille/réveil (inactivité), mais est RÉINITIALISÉE à
-# chaque nouveau déploiement (push sur main, ou changement du Blueprint).
-# Pour de vrais résidents sur le long terme, il faudra passer sur un plan payant
-# avec disque persistant (voir le champ `disk` en commentaire plus bas) — le
-# plan gratuit convient pour une démonstration, pas pour une exploitation réelle.
+# Disque persistant : la base SQLite (DB_PATH) et les fichiers uploadés
+# (UPLOADS_DIR — photos d'incidents, documents administratifs) vivent tous les
+# deux sur le disque monté à /data. Sans ce disque (plan gratuit Render), tout
+# est effacé à chaque redéploiement — inutilisable pour de vrais résidents.
+# Le plan "starter" (ou supérieur) est nécessaire : Render n'autorise les
+# disques persistants qu'à partir de ce plan payant.
 #
 # Utilisation : sur render.com, "New +" → "Blueprint" → connecter ce dépôt GitHub.
-# Après le premier déploiement, lancer UNE SEULE FOIS (Shell du service, dans le
-# dashboard Render) : npm run seed:prod --workspace=server
-# ⚠️ Ne jamais relancer le seed après — il efface toutes les données existantes.
+# La première fois que ce service démarre avec un disque vide, il se seed
+# automatiquement avec des données de démonstration (voir server/src/index.js) —
+# aucune action manuelle nécessaire. Ne PAS effacer/redimensionner le disque une
+# fois de vraies données en production, ça perdrait tout son contenu.
+#
+# CORS : ALLOWED_ORIGIN doit être l'URL publique exacte du site une fois connue
+# (ex. https://residence-ops.onrender.com, ou un nom de domaine personnalisé) —
+# sans ça l'API refuse les requêtes du navigateur en production.
 
 services:
   - type: web
     name: residence-ops
     runtime: node
-    plan: free
+    plan: starter
     buildCommand: npm install && npm run build --workspace=client
     startCommand: npm run start:prod --workspace=server
     healthCheckPath: /api/health
-    # disk:                        # Décommenter en passant sur un plan payant
-    #   name: residence-ops-data   # pour une vraie persistance des données.
-    #   mountPath: /data
-    #   sizeGB: 1
+    disk:
+      name: residence-ops-data
+      mountPath: /data
+      sizeGB: 1
     envVars:
       - key: PORT
         value: 10000
+      - key: DB_PATH
+        value: /data/data.sqlite
+      - key: UPLOADS_DIR
+        value: /data/uploads
+      - key: BACKUPS_DIR
+        value: /data/backups
+      - key: ALLOWED_ORIGIN
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: VAPID_PUBLIC_KEY

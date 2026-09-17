@@ -678,3 +678,42 @@ describe("leisure activities", () => {
     expect(dates).toEqual([...dates].sort());
   });
 });
+
+describe("Suivi des erreurs client", () => {
+  let residentToken;
+
+  beforeAll(async () => {
+    const reg = await request(app).post("/api/auth/register").send({
+      name: "Erreurs Test",
+      email: `erreurs-${nanoid(5)}@test.fr`,
+      password: "password123",
+      accepted_privacy: true,
+      residence_id: residenceId,
+      building_id: buildingId,
+    });
+    residentToken = reg.body.token;
+  });
+
+  it("accepts an error report without authentication", async () => {
+    const res = await request(app)
+      .post("/api/client-errors")
+      .send({ message: "Écran blanc au changement de page", url: "https://residence-ops.test/profil" });
+    expect(res.status).toBe(201);
+  });
+
+  it("rejects a report missing the required message field", async () => {
+    const res = await request(app).post("/api/client-errors").send({ url: "https://residence-ops.test/" });
+    expect(res.status).toBe(400);
+  });
+
+  it("blocks a resident from reading the error log", async () => {
+    const res = await request(app).get("/api/client-errors").set("Authorization", `Bearer ${residentToken}`);
+    expect(res.status).toBe(403);
+  });
+
+  it("lets a manager read the recent error log, most recent first", async () => {
+    const res = await request(app).get("/api/client-errors").set("Authorization", `Bearer ${managerToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.errors.some((e) => e.message.includes("Écran blanc"))).toBe(true);
+  });
+});

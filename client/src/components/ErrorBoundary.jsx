@@ -1,5 +1,6 @@
 import { Component } from "react";
 import { AlertTriangle, RotateCw } from "lucide-react";
+import { reportError } from "../lib/errorReporting";
 
 // Filet de sécurité global : sans ceci, une erreur de rendu (n'importe où dans l'app)
 // démonte tout l'arbre React et laisse une page blanche silencieuse — l'utilisateur n'a
@@ -17,6 +18,7 @@ export class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error("Erreur applicative interceptée :", error, info);
+    reportError(error);
   }
 
   render() {

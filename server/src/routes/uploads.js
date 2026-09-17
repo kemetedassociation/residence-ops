@@ -7,7 +7,10 @@ import { nanoid } from "nanoid";
 import { requireAuth } from "../middleware/auth.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsDir = path.join(__dirname, "..", "..", "uploads");
+// UPLOADS_DIR permet de pointer vers un disque persistant en production (voir render.yaml) —
+// sans ça, les photos jointes aux incidents/documents disparaîtraient à chaque redéploiement
+// même une fois la base de données elle-même rendue persistante.
+export const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, "..", "..", "uploads");
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 const storage = multer.diskStorage({

@@ -31,6 +31,7 @@ import { Planning } from "./pages/manager/Planning";
 import { Analytics } from "./pages/manager/Analytics";
 import { NewsManager } from "./pages/manager/NewsManager";
 import { UsersDirectory } from "./pages/manager/UsersDirectory";
+import { ErrorLog } from "./pages/manager/ErrorLog";
 import { Settings } from "./pages/manager/Settings";
 import { MenuManager } from "./pages/manager/MenuManager";
 import { DocumentRequests } from "./pages/manager/DocumentRequests";
@@ -190,6 +191,14 @@ export default function App() {
           element={
             <ProtectedRoute role="manager">
               <UsersDirectory />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manager/erreurs"
+          element={
+            <ProtectedRoute role="manager">
+              <ErrorLog />
             </ProtectedRoute>
           }
         />

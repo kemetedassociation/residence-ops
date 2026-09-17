@@ -13,7 +13,7 @@ import { postsRouter } from "./routes/posts.js";
 import { feedbackRouter } from "./routes/feedback.js";
 import { notificationsRouter } from "./routes/notifications.js";
 import { usersRouter } from "./routes/users.js";
-import { uploadsRouter } from "./routes/uploads.js";
+import { uploadsRouter, uploadsDir } from "./routes/uploads.js";
 import { pushRouter } from "./routes/push.js";
 import { privacyRouter } from "./routes/privacy.js";
 import { cardsRouter } from "./routes/cards.js";
@@ -22,13 +22,17 @@ import { reservationsRouter } from "./routes/reservations.js";
 import { documentsRouter } from "./routes/documents.js";
 import { slotsRouter, appointmentsRouter } from "./routes/appointments.js";
 import { activitiesRouter } from "./routes/activities.js";
+import { errorsRouter } from "./routes/errors.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const app = express();
-app.use(cors());
+// ALLOWED_ORIGIN verrouille l'API sur le vrai domaine du site en production (voir
+// render.yaml). Sans variable définie (dev local, ou avant configuration), on reste
+// permissif pour ne pas bloquer le développement.
+app.use(cors({ origin: process.env.ALLOWED_ORIGIN || true, credentials: true }));
 app.use(express.json());
-app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
+app.use("/uploads", express.static(uploadsDir));
 
 app.use("/api/auth", authRouter);
 app.use("/api/residences", residencesRouter);
@@ -50,6 +54,7 @@ app.use("/api/documents", documentsRouter);
 app.use("/api/availability-slots", slotsRouter);
 app.use("/api/appointments", appointmentsRouter);
 app.use("/api/activities", activitiesRouter);
+app.use("/api/client-errors", errorsRouter);
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 

@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Tests serveur
+        run: npm test --workspace=server
+
+      - name: Tests client
+        run: npm test --workspace=client
+
+      - name: Build client (vérifie l'absence d'erreur de build)
+        run: npm run build --workspace=client

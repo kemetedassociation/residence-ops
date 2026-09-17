@@ -9,7 +9,10 @@ import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { ThemeProvider } from "./context/ThemeContext.jsx";
 import { BrandingProvider } from "./context/BrandingContext.jsx";
+import { installGlobalErrorReporting } from "./lib/errorReporting.js";
 import "./index.css";
+
+installGlobalErrorReporting();
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 10_000, refetchOnWindowFocus: false } },

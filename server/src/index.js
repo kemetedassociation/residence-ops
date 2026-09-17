@@ -5,6 +5,7 @@ import { app } from "./app.js";
 import { setIO, roomFor } from "./realtime.js";
 import { db } from "./db/db.js";
 import { JWT_SECRET } from "./middleware/auth.js";
+import { backupNow } from "./db/backup.js";
 
 // Seed automatique si la base est vide : nécessaire sur Render (plan gratuit, pas d'accès
 // Shell, et base de données réinitialisée à chaque déploiement) — sans danger, puisqu'il ne
@@ -16,8 +17,19 @@ if (count === 0) {
   seed();
 }
 
+// Sauvegarde automatique de la base (une au démarrage, puis toutes les 24h) — sur le disque
+// persistant en production (BACKUPS_DIR, voir render.yaml), pour pouvoir restaurer en cas de
+// problème sans dépendre d'une intervention manuelle.
+const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+if (!process.env.VITEST) {
+  backupNow().catch((err) => console.error("Échec de la sauvegarde automatique :", err));
+  setInterval(() => {
+    backupNow().catch((err) => console.error("Échec de la sauvegarde automatique :", err));
+  }, BACKUP_INTERVAL_MS);
+}
+
 const httpServer = createServer(app);
-const io = new Server(httpServer, { cors: { origin: "*" } });
+const io = new Server(httpServer, { cors: { origin: process.env.ALLOWED_ORIGIN || true, credentials: true } });
 setIO(io);
 
 io.use((socket, next) => {
