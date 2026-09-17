@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { NavLink, Outlet } from "react-router-dom";
+import { motion } from "framer-motion";
 import { Menu, Home, MegaphoneIcon, Map, Newspaper, User, Bell, Wallet, UtensilsCrossed, FileText, PartyPopper, Lightbulb, Download } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
@@ -52,7 +52,6 @@ function TabLink({ to, label, icon: Icon, end }) {
 
 export function ResidentLayout() {
   const { user } = useAuth();
-  const location = useLocation();
   const queryClient = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -98,17 +97,7 @@ export function ResidentLayout() {
       <NavDrawer open={menuOpen} onOpenChange={setMenuOpen} shortcutItems={shortcutItems} />
 
       <main className="flex-1 pb-24">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.18 }}
-          >
-            <Outlet />
-          </motion.div>
-        </AnimatePresence>
+        <Outlet />
       </main>
 
       <nav className="safe-bottom fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-background/95 backdrop-blur">
