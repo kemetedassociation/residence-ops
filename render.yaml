@@ -2,18 +2,24 @@
 # (le serveur Express sert les fichiers statiques du client une fois buildé —
 # voir server/src/app.js). Évite tout problème de proxy entre deux services.
 #
-# Disque persistant : la base SQLite (DB_PATH) et les fichiers uploadés
-# (UPLOADS_DIR — photos d'incidents, documents administratifs) vivent tous les
-# deux sur le disque monté à /data. Sans ce disque (plan gratuit Render), tout
-# est effacé à chaque redéploiement — inutilisable pour de vrais résidents.
-# Le plan "starter" (ou supérieur) est nécessaire : Render n'autorise les
-# disques persistants qu'à partir de ce plan payant.
+# ⚠️ Plan gratuit actif : PAS de disque persistant (non supporté par Render en
+# free). La base SQLite, les fichiers uploadés et les sauvegardes vivent sur le
+# système de fichiers éphémère du conteneur — tout est effacé à chaque
+# redéploiement. Convient à une démonstration, pas à de vrais résidents avec de
+# vraies données. Pour passer en persistant sans frais Render (le compte n'a
+# pas de budget pour l'instant), voir la piste "base de données externe
+# gratuite (Turso)" discutée avec l'utilisateur — sinon, dès qu'un budget est
+# disponible, décommenter le bloc `disk` ci-dessous et passer `plan` à
+# `starter` (~7$/mois) réactive tout de suite DB_PATH/UPLOADS_DIR/BACKUPS_DIR
+# dans les variables d'environnement (retirées ci-dessous pour éviter un crash
+# au démarrage tant qu'aucun disque n'est monté sur /data).
+#
+# disk:
+#   name: residence-ops-data
+#   mountPath: /data
+#   sizeGB: 1
 #
 # Utilisation : sur render.com, "New +" → "Blueprint" → connecter ce dépôt GitHub.
-# La première fois que ce service démarre avec un disque vide, il se seed
-# automatiquement avec des données de démonstration (voir server/src/index.js) —
-# aucune action manuelle nécessaire. Ne PAS effacer/redimensionner le disque une
-# fois de vraies données en production, ça perdrait tout son contenu.
 #
 # CORS : ALLOWED_ORIGIN doit être l'URL publique exacte du site une fois connue
 # (ex. https://residence-ops.onrender.com, ou un nom de domaine personnalisé) —
@@ -23,23 +29,16 @@ services:
   - type: web
     name: residence-ops
     runtime: node
-    plan: starter
+    plan: free
     buildCommand: npm install && npm run build --workspace=client
     startCommand: npm run start:prod --workspace=server
     healthCheckPath: /api/health
-    disk:
-      name: residence-ops-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: PORT
         value: 10000
-      - key: DB_PATH
-        value: /data/data.sqlite
-      - key: UPLOADS_DIR
-        value: /data/uploads
-      - key: BACKUPS_DIR
-        value: /data/backups
+      # - key: DB_PATH          # Décommenter avec le disque (ex: /data/data.sqlite)
+      # - key: UPLOADS_DIR      # Décommenter avec le disque (ex: /data/uploads)
+      # - key: BACKUPS_DIR      # Décommenter avec le disque (ex: /data/backups)
       - key: ALLOWED_ORIGIN
         sync: false
       - key: JWT_SECRET
