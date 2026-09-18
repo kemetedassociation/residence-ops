@@ -1,15 +1,10 @@
 import Database from "better-sqlite3";
-import path from "node:path";
-import fs from "node:fs";
-import { fileURLToPath } from "node:url";
 import { runMigrations } from "./migrate.js";
+import { resolveDbPath } from "./dbPath.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Kept outside src/ on purpose: `node --watch-path=./src` would otherwise treat
 // every WAL checkpoint write as a source change and restart the server in a loop.
-const dataDir = path.join(__dirname, "..", "..", "data");
-fs.mkdirSync(dataDir, { recursive: true });
-const filePath = process.env.DB_PATH || path.join(dataDir, "data.sqlite");
+const filePath = resolveDbPath();
 
 export const db = new Database(filePath);
 db.pragma("journal_mode = WAL");

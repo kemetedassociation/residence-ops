@@ -3,16 +3,19 @@
 # voir server/src/app.js). Évite tout problème de proxy entre deux services.
 #
 # ⚠️ Plan gratuit actif : PAS de disque persistant (non supporté par Render en
-# free). La base SQLite, les fichiers uploadés et les sauvegardes vivent sur le
-# système de fichiers éphémère du conteneur — tout est effacé à chaque
-# redéploiement. Convient à une démonstration, pas à de vrais résidents avec de
-# vraies données. Pour passer en persistant sans frais Render (le compte n'a
-# pas de budget pour l'instant), voir la piste "base de données externe
-# gratuite (Turso)" discutée avec l'utilisateur — sinon, dès qu'un budget est
-# disponible, décommenter le bloc `disk` ci-dessous et passer `plan` à
-# `starter` (~7$/mois) réactive tout de suite DB_PATH/UPLOADS_DIR/BACKUPS_DIR
-# dans les variables d'environnement (retirées ci-dessous pour éviter un crash
-# au démarrage tant qu'aucun disque n'est monté sur /data).
+# free). Le disque local est effacé à chaque redéploiement — mais la base est
+# sauvegardée chaque jour (chiffrée) vers un dépôt GitHub privé DÉDIÉ (jamais
+# le dépôt de code, qui peut être public), et restaurée automatiquement au
+# démarrage si le disque local est vide (voir server/src/db/restore.js et
+# server/src/db/backup.js). Fenêtre de perte de données possible : jusqu'à 24h
+# entre deux sauvegardes en cas de crash, mais plus de perte totale à chaque
+# redéploiement.
+#
+# Dès qu'un budget est disponible, décommenter le bloc `disk` ci-dessous et
+# passer `plan` à `starter` (~7$/mois) pour un disque persistant en temps réel
+# (aucune fenêtre de perte) — réactiver alors aussi DB_PATH/UPLOADS_DIR/
+# BACKUPS_DIR (retirées ci-dessous pour éviter un crash au démarrage tant
+# qu'aucun disque n'est monté sur /data).
 #
 # disk:
 #   name: residence-ops-data
@@ -40,6 +43,13 @@ services:
       # - key: UPLOADS_DIR      # Décommenter avec le disque (ex: /data/uploads)
       # - key: BACKUPS_DIR      # Décommenter avec le disque (ex: /data/backups)
       - key: ALLOWED_ORIGIN
+        sync: false
+      # Sauvegarde chiffrée vers un dépôt GitHub privé dédié (jamais le dépôt de code) :
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
+      - key: GITHUB_BACKUP_TOKEN
+        sync: false
+      - key: GITHUB_BACKUP_REPO
         sync: false
       - key: JWT_SECRET
         generateValue: true
