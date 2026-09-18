@@ -14,6 +14,7 @@ import {
   CalendarCheck,
   PartyPopper,
   AlertTriangle,
+  Download,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useBranding } from "../context/BrandingContext";
@@ -72,6 +73,13 @@ export function ManagerLayout() {
           ))}
         </nav>
         <div className="border-t border-sidebar-border px-3 py-4">
+          <NavLink
+            to="/telecharger"
+            className="mb-2 flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            <Download className="h-4 w-4" />
+            Installer l'app
+          </NavLink>
           <div className="mb-2 px-3 text-xs text-sidebar-foreground/60">{user?.name}</div>
           <button
             onClick={handleLogout}
