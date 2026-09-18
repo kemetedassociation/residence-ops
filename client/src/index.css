@@ -122,6 +122,9 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     transition: background-color 0.3s ease, color 0.3s ease;
+    /* Empêche le rebond de défilement (iOS notamment) de faire visuellement "sauter" les
+       barres fixes en haut/bas au bout du scroll. */
+    overscroll-behavior-y: contain;
   }
 }
 

@@ -65,7 +65,7 @@ export function ResidentLayout() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="safe-top sticky top-0 z-30 flex items-center justify-between gap-3 bg-background/80 px-4 py-2 backdrop-blur">
+      <header className="safe-top fixed inset-x-0 top-0 z-30 flex items-center justify-between gap-3 bg-background/95 px-4 py-2 backdrop-blur">
         <button
           onClick={() => setMenuOpen(true)}
           className="rounded-full p-2 text-foreground transition-all duration-150 hover:bg-accent active:scale-90"
@@ -96,7 +96,9 @@ export function ResidentLayout() {
 
       <NavDrawer open={menuOpen} onOpenChange={setMenuOpen} shortcutItems={shortcutItems} />
 
-      <main className="flex-1 pb-24">
+      {/* L'en-tête est fixe (retiré du flux normal) : ce padding compense sa hauteur pour que
+          le contenu ne démarre pas caché dessous. */}
+      <main className="flex-1 pb-24" style={{ paddingTop: "calc(3.25rem + env(safe-area-inset-top))" }}>
         <Outlet />
       </main>
 
