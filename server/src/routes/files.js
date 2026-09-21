@@ -13,12 +13,49 @@ import { residenceIdForUser } from "../lib/residence.js";
 export const privateFilesDir = process.env.PRIVATE_FILES_DIR || path.join(uploadsDir, "..", "private-files");
 fs.mkdirSync(privateFilesDir, { recursive: true });
 
-const ALLOWED = {
-  "application/pdf": (b) => b.subarray(0, 5).toString("latin1") === "%PDF-",
-  "image/jpeg": (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
-  "image/png": (b) => b.subarray(1, 4).toString("latin1") === "PNG",
-  "image/webp": (b) => b.subarray(0, 4).toString("latin1") === "RIFF" && b.subarray(8, 12).toString("latin1") === "WEBP",
+// Formats acceptés, identifiés par l'EXTENSION et vérifiés sur l'en-tête réel du fichier : le
+// type MIME envoyé par le navigateur n'est pas fiable (Windows en envoie souvent un faux, ou
+// application/octet-stream). Le type enregistré est celui de cette table, jamais celui du client.
+// `inline` = affichable dans le navigateur ; tout le reste est servi en téléchargement, pour
+// qu'un fichier ne puisse jamais s'exécuter/s'afficher comme une page web.
+// Volontairement exclus : html, svg, js, exe, archives — potentiellement exécutables.
+const startsWith = (b, sig, offset = 0) => sig.every((byte, i) => b[offset + i] === byte);
+const ascii = (b, start, end) => b.subarray(start, end).toString("latin1");
+const isZip = (b) => startsWith(b, [0x50, 0x4b, 0x03, 0x04]);
+const isOle = (b) => startsWith(b, [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]);
+const isText = (b) => !b.includes(0);
+const isJpeg = (b) => startsWith(b, [0xff, 0xd8, 0xff]);
+const isPng = (b) => startsWith(b, [0x89, 0x50, 0x4e, 0x47]);
+
+const FORMATS = {
+  pdf: { mime: "application/pdf", inline: true, check: (b) => ascii(b, 0, 5) === "%PDF-" },
+  jpg: { mime: "image/jpeg", inline: true, check: isJpeg },
+  jpeg: { mime: "image/jpeg", inline: true, check: isJpeg },
+  png: { mime: "image/png", inline: true, check: isPng },
+  gif: { mime: "image/gif", inline: true, check: (b) => ascii(b, 0, 4) === "GIF8" },
+  webp: { mime: "image/webp", inline: true, check: (b) => ascii(b, 0, 4) === "RIFF" && ascii(b, 8, 12) === "WEBP" },
+  heic: { mime: "image/heic", inline: false, check: (b) => ascii(b, 4, 8) === "ftyp" },
+  heif: { mime: "image/heif", inline: false, check: (b) => ascii(b, 4, 8) === "ftyp" },
+  doc: { mime: "application/msword", inline: false, check: isOle },
+  docx: { mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", inline: false, check: isZip },
+  xls: { mime: "application/vnd.ms-excel", inline: false, check: isOle },
+  xlsx: { mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", inline: false, check: isZip },
+  ppt: { mime: "application/vnd.ms-powerpoint", inline: false, check: isOle },
+  pptx: { mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation", inline: false, check: isZip },
+  odt: { mime: "application/vnd.oasis.opendocument.text", inline: false, check: isZip },
+  ods: { mime: "application/vnd.oasis.opendocument.spreadsheet", inline: false, check: isZip },
+  odp: { mime: "application/vnd.oasis.opendocument.presentation", inline: false, check: isZip },
+  rtf: { mime: "application/rtf", inline: false, check: (b) => ascii(b, 0, 5) === "{\\rtf" },
+  txt: { mime: "text/plain", inline: false, check: isText },
+  csv: { mime: "text/csv", inline: false, check: isText },
 };
+
+export const ACCEPTED_EXTENSIONS = Object.keys(FORMATS);
+
+function formatOf(filename) {
+  const ext = path.extname(filename || "").slice(1).toLowerCase();
+  return FORMATS[ext] || null;
+}
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -27,7 +64,11 @@ const upload = multer({
   }),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    if (!ALLOWED[file.mimetype]) return cb(new Error("Format non accepté : PDF, JPEG, PNG ou WebP uniquement."));
+    if (!formatOf(file.originalname)) {
+      return cb(
+        new Error(`Format non accepté. Formats acceptés : ${ACCEPTED_EXTENSIONS.map((e) => e.toUpperCase()).join(", ")}.`)
+      );
+    }
     cb(null, true);
   },
 });
@@ -61,11 +102,12 @@ filesRouter.post(
 
       // Le type MIME est déclaré par le client : on vérifie l'en-tête réel du fichier pour
       // empêcher de faire passer autre chose pour un PDF.
-      const head = Buffer.alloc(12);
+      const format = formatOf(req.file.originalname);
+      const head = Buffer.alloc(512);
       const fd = fs.openSync(req.file.path, "r");
-      fs.readSync(fd, head, 0, 12, 0);
+      const read = fs.readSync(fd, head, 0, 512, 0);
       fs.closeSync(fd);
-      if (!ALLOWED[req.file.mimetype](head)) {
+      if (read === 0 || !format.check(head.subarray(0, read))) {
         fs.rmSync(req.file.path, { force: true });
         return res.status(400).json({ error: "Le contenu du fichier ne correspond pas à son format." });
       }
@@ -74,9 +116,9 @@ filesRouter.post(
       const originalName = (req.file.originalname || "document").slice(0, 200);
       db.prepare(
         "INSERT INTO private_files (id, original_name, mime, size, uploader_id, residence_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-      ).run(id, originalName, req.file.mimetype, req.file.size, req.userId, residenceIdForUser(req.userId), new Date().toISOString());
+      ).run(id, originalName, format.mime, req.file.size, req.userId, residenceIdForUser(req.userId), new Date().toISOString());
 
-      res.status(201).json({ file: { url: fileUrl(id), name: originalName, mime: req.file.mimetype, size: req.file.size } });
+      res.status(201).json({ file: { url: fileUrl(id), name: originalName, mime: format.mime, size: req.file.size } });
     });
   }
 );
@@ -99,8 +141,12 @@ filesRouter.get("/:id", (req, res) => {
   if (!fs.existsSync(fullPath)) {
     return res.status(410).json({ error: "Ce fichier n'est plus disponible (il a été perdu lors d'une réinitialisation du serveur)." });
   }
+  const inline = Object.values(FORMATS).some((f) => f.mime === file.mime && f.inline);
   res.setHeader("Content-Type", file.mime);
-  res.setHeader("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(file.original_name)}`);
+  res.setHeader(
+    "Content-Disposition",
+    `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.original_name)}`
+  );
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Cache-Control", "private, no-store");
   res.sendFile(fullPath);

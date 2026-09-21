@@ -776,6 +776,52 @@ describe("Documents PDF privés", () => {
     expect(res.status).toBe(400);
   });
 
+  it("accepte Word, Excel, texte, GIF et HEIC selon leur contenu réel", async () => {
+    const zip = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]);
+    const cases = [
+      ["contrat.docx", zip],
+      ["budget.xlsx", zip],
+      ["notes.txt", Buffer.from("Bonjour, ceci est un justificatif.")],
+      ["liste.csv", Buffer.from("a;b\n1;2\n")],
+      ["anim.gif", Buffer.from("GIF89a....")],
+      ["photo.heic", Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypheic"), Buffer.alloc(8)])],
+      ["ancien.doc", Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, 0, 0])],
+    ];
+    for (const [filename, content] of cases) {
+      const res = await request(app).post("/api/files").set("Authorization", `Bearer ${residentToken}`).attach("file", content, { filename, contentType: "application/octet-stream" });
+      expect(res.status, filename).toBe(201);
+    }
+  });
+
+  it("accepte un PDF même si le navigateur envoie un type MIME générique (cas Windows)", async () => {
+    const res = await request(app).post("/api/files").set("Authorization", `Bearer ${residentToken}`).attach("file", pdf, { filename: "scan.PDF", contentType: "application/octet-stream" });
+    expect(res.status).toBe(201);
+  });
+
+  it("refuse un faux Word (contenu texte renommé .docx) et les formats dangereux", async () => {
+    for (const [filename, content] of [
+      ["faux.docx", Buffer.from("pas un zip")],
+      ["page.html", Buffer.from("<html><script>alert(1)</script></html>")],
+      ["image.svg", Buffer.from("<svg onload=alert(1)/>")],
+      ["script.js", Buffer.from("alert(1)")],
+      ["binaire.txt", Buffer.from([0x41, 0x00, 0x42])],
+    ]) {
+      const res = await request(app).post("/api/files").set("Authorization", `Bearer ${residentToken}`).attach("file", content, { filename, contentType: "text/plain" });
+      expect(res.status, filename).toBe(400);
+    }
+  });
+
+  it("sert un PDF en affichage direct mais un Word en téléchargement", async () => {
+    const pdfRes = await request(app).get(fileUrl).set("Authorization", `Bearer ${residentToken}`);
+    expect(pdfRes.headers["content-disposition"]).toMatch(/^inline/);
+
+    const up = await request(app).post("/api/files").set("Authorization", `Bearer ${residentToken}`).attach("file", Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0]), { filename: "cv.docx", contentType: "application/octet-stream" });
+    const docx = await request(app).get(up.body.file.url).set("Authorization", `Bearer ${residentToken}`);
+    expect(docx.status).toBe(200);
+    expect(docx.headers["content-disposition"]).toMatch(/^attachment/);
+    expect(docx.headers["x-content-type-options"]).toBe("nosniff");
+  });
+
   it("refuse le dépôt sans authentification", async () => {
     const res = await request(app).post("/api/files").attach("file", pdf, { filename: "a.pdf", contentType: "application/pdf" });
     expect(res.status).toBe(401);

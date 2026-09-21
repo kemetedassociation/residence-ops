@@ -7,7 +7,7 @@ import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Textarea } from "../../components/ui/textarea";
 import { api } from "../../lib/api";
-import { uploadPrivateFile, openPrivateFile } from "../../lib/files";
+import { uploadPrivateFile, openPrivateFile, DOCUMENT_ACCEPT, DOCUMENT_FORMATS_LABEL } from "../../lib/files";
 import { DOCUMENT_TYPES, DOCUMENT_STATUSES, labelFor, variantFor } from "../../lib/constants";
 import { formatDateTime } from "../../lib/utils";
 
@@ -96,12 +96,12 @@ export function DocumentRequests() {
                 )}
                 <Button size="sm" variant="outline" onClick={() => fileInputRefs.current[d.id]?.click()}>
                   <Upload className="h-3.5 w-3.5" />
-                  Joindre le document (PDF)
+                  Joindre le document
                 </Button>
                 <input
                   ref={(el) => (fileInputRefs.current[d.id] = el)}
                   type="file"
-                  accept="application/pdf,image/jpeg,image/png,image/webp"
+                  accept={DOCUMENT_ACCEPT}
                   className="hidden"
                   onChange={(e) => handleFile(d.id, e)}
                 />

@@ -13,7 +13,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from ".
 import { RestrictedBanner } from "../../components/RestrictedBanner";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../lib/api";
-import { uploadPrivateFile, openPrivateFile } from "../../lib/files";
+import { uploadPrivateFile, openPrivateFile, DOCUMENT_ACCEPT, DOCUMENT_FORMATS_LABEL } from "../../lib/files";
 import { DOCUMENT_TYPES, DOCUMENT_STATUSES, labelFor, variantFor } from "../../lib/constants";
 import { formatDate, formatDateTime } from "../../lib/utils";
 
@@ -140,14 +140,14 @@ export function Administration() {
                     <input
                       ref={attachmentInput}
                       type="file"
-                      accept="application/pdf,image/jpeg,image/png,image/webp"
+                      accept={DOCUMENT_ACCEPT}
                       className="hidden"
                       onChange={(e) => setAttachment(e.target.files?.[0] || null)}
                     />
                     <div className="flex items-center gap-2">
                       <Button type="button" variant="outline" size="sm" onClick={() => attachmentInput.current?.click()}>
                         <Paperclip className="h-3.5 w-3.5" />
-                        Joindre un justificatif (PDF)
+                        Joindre un justificatif
                       </Button>
                       {attachment && (
                         <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
@@ -158,6 +158,7 @@ export function Administration() {
                         </span>
                       )}
                     </div>
+                    <p className="text-[11px] text-muted-foreground">Formats acceptés : {DOCUMENT_FORMATS_LABEL} (10 Mo maximum)</p>
                     <Button type="submit" className="w-full" disabled={!docType || sending}>
                       {sending ? "Envoi…" : "Envoyer la demande"}
                     </Button>

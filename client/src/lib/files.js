@@ -2,6 +2,16 @@ import { toast } from "sonner";
 import { api, getToken } from "./api";
 
 export const MAX_FILE_MB = 10;
+// Doit rester aligné sur la table FORMATS de server/src/routes/files.js.
+export const DOCUMENT_ACCEPT =
+  ".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.heif,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf,.txt,.csv";
+export const DOCUMENT_FORMATS_LABEL = "PDF, images, Word, Excel, PowerPoint, texte…";
+const INLINE_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"];
+
+function filenameFrom(res) {
+  const match = /filename\*=UTF-8''([^;]+)/i.exec(res.headers.get("content-disposition") || "");
+  return match ? decodeURIComponent(match[1]) : "document";
+}
 
 export async function uploadPrivateFile(file) {
   if (file.size > MAX_FILE_MB * 1024 * 1024) throw new Error(`Fichier trop volumineux (${MAX_FILE_MB} Mo maximum).`);
@@ -25,9 +35,22 @@ export async function openPrivateFile(url) {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error || "Impossible d'ouvrir le fichier.");
     }
-    const blobUrl = URL.createObjectURL(await res.blob());
-    if (win) win.location.href = blobUrl;
-    else window.location.href = blobUrl;
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    if (INLINE_TYPES.includes(blob.type)) {
+      // PDF et images : affichés directement dans l'onglet.
+      if (win) win.location.href = blobUrl;
+      else window.location.href = blobUrl;
+    } else {
+      // Word, Excel, texte… : le navigateur ne sait pas les afficher, on les télécharge.
+      win?.close();
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filenameFrom(res);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
     setTimeout(() => URL.revokeObjectURL(blobUrl), 5 * 60 * 1000);
   } catch (err) {
     win?.close();
