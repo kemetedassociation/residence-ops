@@ -8,7 +8,6 @@ import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import { Label } from "../../components/ui/label";
 import { Input } from "../../components/ui/input";
 import { Button } from "../../components/ui/button";
-import { Separator } from "../../components/ui/separator";
 import { Progress } from "../../components/ui/progress";
 import { ThemeSwitcher } from "../../components/ThemeSwitcher";
 import { StatusBadge } from "../../components/StatusBadge";
@@ -24,6 +23,10 @@ function reliabilityTier(ratio) {
   if (ratio >= 0.7) return { label: "Expert", color: "#10b981" };
   if (ratio >= 0.35) return { label: "Actif", color: "#f59e0b" };
   return { label: "Débutant", color: "#94a3b8" };
+}
+
+function SectionTitle({ children }) {
+  return <h2 className="px-1 pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{children}</h2>;
 }
 
 export function Profile() {
@@ -110,6 +113,8 @@ export function Profile() {
           <p className="text-sm text-muted-foreground">{user?.email}</p>
         </div>
       </div>
+
+      <SectionTitle>Compte</SectionTitle>
 
       <Card>
         <CardContent className="space-y-4 p-5">
@@ -218,6 +223,8 @@ export function Profile() {
         </CardContent>
       </Card>
 
+      <SectionTitle>Préférences</SectionTitle>
+
       <Card>
         <CardContent className="p-5">
           <ThemeSwitcher />
@@ -234,6 +241,8 @@ export function Profile() {
         Retrouvez Ma carte, Restaurant, Administration, Loisirs, la Boîte à idées et l'installation de l'app depuis le
         bouton ☰ en haut à gauche de l'écran.
       </p>
+
+      <SectionTitle>Confidentialité</SectionTitle>
 
       <Card>
         <CardHeader>
@@ -258,7 +267,7 @@ export function Profile() {
         </CardContent>
       </Card>
 
-      <Separator />
+      <SectionTitle>Session</SectionTitle>
 
       <Button variant="outline" className="w-full" onClick={handleLogout}>
         <LogOut className="h-4 w-4" />

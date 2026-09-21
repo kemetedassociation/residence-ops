@@ -717,3 +717,22 @@ describe("Suivi des erreurs client", () => {
     expect(res.body.errors.some((e) => e.message.includes("Écran blanc"))).toBe(true);
   });
 });
+
+describe("Amorçage production", () => {
+  it("refuse de démarrer sans les variables INITIAL_*", async () => {
+    const { bootstrapProduction } = await import("../db/bootstrap.js");
+    delete process.env.INITIAL_MANAGER_EMAIL;
+    expect(() => bootstrapProduction()).toThrow(/INITIAL_RESIDENCE_NAME/);
+  });
+
+  it("refuse un mot de passe gestionnaire trop court", async () => {
+    const { bootstrapProduction } = await import("../db/bootstrap.js");
+    process.env.INITIAL_RESIDENCE_NAME = "X";
+    process.env.INITIAL_MANAGER_EMAIL = "x@x.fr";
+    process.env.INITIAL_MANAGER_PASSWORD = "court";
+    expect(() => bootstrapProduction()).toThrow(/12 caractères/);
+    delete process.env.INITIAL_RESIDENCE_NAME;
+    delete process.env.INITIAL_MANAGER_EMAIL;
+    delete process.env.INITIAL_MANAGER_PASSWORD;
+  });
+});

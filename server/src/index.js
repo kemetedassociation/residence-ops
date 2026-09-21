@@ -12,20 +12,30 @@ import { backupNow } from "./db/backup.js";
 // se déclenche que quand la table residences est vide (jamais sur une base déjà en usage).
 const { count } = db.prepare("SELECT COUNT(*) as count FROM residences").get();
 if (count === 0) {
-  console.log("Base de données vide détectée : lancement du seed de démonstration...");
-  const { seed } = await import("./db/seed.js");
-  seed();
+  if (process.env.SEED_MODE === "production") {
+    const { bootstrapProduction } = await import("./db/bootstrap.js");
+    bootstrapProduction();
+  } else {
+    console.log("Base de données vide détectée : lancement du seed de démonstration...");
+    const { seed } = await import("./db/seed.js");
+    seed();
+  }
 }
 
-// Sauvegarde automatique de la base (une au démarrage, puis toutes les 24h) — sur le disque
-// persistant en production (BACKUPS_DIR, voir render.yaml), pour pouvoir restaurer en cas de
-// problème sans dépendre d'une intervention manuelle.
-const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+// Sauvegarde automatique de la base : au démarrage, toutes les 15 min (n'envoie à distance que
+// si quelque chose a changé), et surtout à l'arrêt du processus — Render envoie SIGTERM avant
+// chaque redéploiement/mise en veille, ce qui permet de capturer l'état le plus récent juste
+// avant que le disque éphémère ne soit effacé.
+const BACKUP_INTERVAL_MS = 15 * 60 * 1000;
 if (!process.env.VITEST) {
-  backupNow().catch((err) => console.error("Échec de la sauvegarde automatique :", err));
-  setInterval(() => {
-    backupNow().catch((err) => console.error("Échec de la sauvegarde automatique :", err));
-  }, BACKUP_INTERVAL_MS);
+  const safeBackup = () => backupNow().catch((err) => console.error("Échec de la sauvegarde automatique :", err));
+  safeBackup();
+  setInterval(safeBackup, BACKUP_INTERVAL_MS);
+  process.on("SIGTERM", async () => {
+    console.log("SIGTERM reçu : sauvegarde finale avant arrêt...");
+    await safeBackup();
+    process.exit(0);
+  });
 }
 
 const httpServer = createServer(app);

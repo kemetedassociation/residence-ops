@@ -24,18 +24,28 @@ async function restore() {
     return;
   }
 
-  try {
-    const encrypted = await downloadEncryptedBackup();
-    if (!encrypted) {
-      console.log("Aucune sauvegarde distante trouvée, démarrage avec une base vide.");
+  // Plusieurs tentatives : une indisponibilité passagère de GitHub ne doit pas faire démarrer
+  // le serveur avec une base vide (qui pourrait ensuite écraser la bonne sauvegarde).
+  let lastError;
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    try {
+      const encrypted = await downloadEncryptedBackup();
+      if (!encrypted) {
+        console.log("Aucune sauvegarde distante trouvée (première installation), démarrage avec une base vide.");
+        return;
+      }
+      const plain = decryptBuffer(encrypted);
+      fs.writeFileSync(dbPath, plain);
+      console.log(`Base restaurée depuis la sauvegarde distante (${plain.length} octets).`);
       return;
+    } catch (err) {
+      lastError = err;
+      console.error(`Restauration : tentative ${attempt}/4 échouée (${err.message}).`);
+      await new Promise((r) => setTimeout(r, attempt * 3000));
     }
-    const plain = decryptBuffer(encrypted);
-    fs.writeFileSync(dbPath, plain);
-    console.log(`Base restaurée depuis la sauvegarde distante (${plain.length} octets).`);
-  } catch (err) {
-    console.error("Échec de la restauration depuis la sauvegarde distante, démarrage avec une base vide :", err.message);
   }
+  console.error("Restauration impossible après 4 tentatives — arrêt pour ne pas démarrer sur une base vide :", lastError?.message);
+  process.exit(1);
 }
 
 await restore();

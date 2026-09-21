@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X, MapPin, ThumbsUp, Calendar } from "lucide-react";
+import { X, MapPin, ThumbsUp, Calendar, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
 import { IncidentTypeIcon } from "./IncidentTypeIcon";
@@ -8,6 +8,61 @@ import { INCIDENT_PRIORITIES, labelFor, variantFor } from "../lib/constants";
 import { Badge } from "./ui/badge";
 import { formatDateTime } from "../lib/utils";
 import { api } from "../lib/api";
+import { cn } from "../lib/utils";
+
+const TIMELINE = [
+  { status: "signale", label: "Signalé", hint: "Votre signalement a bien été reçu." },
+  { status: "confirme", label: "Confirmé", hint: "Confirmé par la gestion ou d'autres résidents." },
+  { status: "en_cours", label: "En cours de traitement", hint: "Une intervention est en cours ou planifiée." },
+  { status: "resolu", label: "Résolu", hint: "Le problème a été traité." },
+];
+
+// Ligne du temps dérivée du statut actuel : on n'affiche une date que là où le serveur en
+// fournit une réellement (création, résolution) plutôt que d'en inventer pour les étapes
+// intermédiaires.
+function IncidentTimeline({ incident }) {
+  if (incident.status === "rejete") {
+    return (
+      <div className="mt-4 rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+        Ce signalement a été clôturé sans suite par la gestion.
+      </div>
+    );
+  }
+  const currentIndex = Math.max(0, TIMELINE.findIndex((s) => s.status === incident.status));
+  const dateFor = (status) =>
+    status === "signale" ? incident.created_at : status === "resolu" ? incident.resolved_date : status === incident.status ? incident.updated_at : null;
+
+  return (
+    <ol className="mt-5 space-y-0">
+      {TIMELINE.map((step, i) => {
+        const done = i <= currentIndex;
+        const current = i === currentIndex;
+        const date = done ? dateFor(step.status) : null;
+        return (
+          <li key={step.status} className="flex gap-3">
+            <div className="flex flex-col items-center">
+              <span
+                className={cn(
+                  "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-white",
+                  done ? "border-primary bg-primary" : "border-border bg-card",
+                  current && "ring-4 ring-primary/20"
+                )}
+              >
+                {done && <Check className="h-3.5 w-3.5" />}
+              </span>
+              {i < TIMELINE.length - 1 && <span className={cn("h-8 w-0.5", i < currentIndex ? "bg-primary" : "bg-border")} />}
+            </div>
+            <div className="pb-3">
+              <p className={cn("text-sm font-medium", !done && "text-muted-foreground")}>{step.label}</p>
+              <p className="text-xs text-muted-foreground">{current ? step.hint : date ? formatDateTime(date) : ""}</p>
+              {current && date && <p className="text-xs text-muted-foreground">{formatDateTime(date)}</p>}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 export function IncidentDetailSheet({ incident, buildingName, currentUserId, canConfirm, onClose, onConfirmed }) {
   if (!incident) return null;
@@ -62,6 +117,8 @@ export function IncidentDetailSheet({ incident, buildingName, currentUserId, can
         </div>
 
         <p className="mt-4 text-sm leading-relaxed text-foreground">{incident.description}</p>
+
+        <IncidentTimeline incident={incident} />
 
         {incident.photo_urls?.length > 0 && (
           <div className="mt-4 flex gap-2 overflow-x-auto">

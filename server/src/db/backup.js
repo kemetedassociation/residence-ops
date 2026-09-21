@@ -1,5 +1,6 @@
 import path from "node:path";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { db } from "./db.js";
 import { encryptBuffer, isBackupEncryptionConfigured } from "../lib/backupCrypto.js";
@@ -9,6 +10,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // BACKUPS_DIR permet de pointer vers le disque persistant en production (voir render.yaml) —
 // sinon les sauvegardes elles-mêmes disparaîtraient à chaque redéploiement.
 const backupsDir = process.env.BACKUPS_DIR || path.join(__dirname, "..", "..", "backups");
+
+let lastUploadedHash = null;
 
 export async function backupNow(retention = 14) {
   fs.mkdirSync(backupsDir, { recursive: true });
@@ -31,8 +34,20 @@ export async function backupNow(retention = 14) {
   if (isBackupEncryptionConfigured()) {
     try {
       const plain = fs.readFileSync(target);
-      const uploaded = await uploadEncryptedBackup(encryptBuffer(plain));
-      if (uploaded) console.log("Sauvegarde chiffrée envoyée vers le dépôt GitHub distant.");
+      const hash = crypto.createHash("sha256").update(plain).digest("hex");
+      const { count } = db.prepare("SELECT COUNT(*) AS count FROM residences").get();
+      if (count === 0) {
+        // Ne jamais écraser une bonne sauvegarde distante par une base vide.
+        console.log("Base vide : envoi distant ignoré pour ne pas écraser une sauvegarde existante.");
+      } else if (hash === lastUploadedHash) {
+        // Rien n'a changé depuis le dernier envoi : inutile d'ajouter un commit au dépôt.
+      } else {
+        const uploaded = await uploadEncryptedBackup(encryptBuffer(plain));
+        if (uploaded) {
+          lastUploadedHash = hash;
+          console.log("Sauvegarde chiffrée envoyée vers le dépôt GitHub distant.");
+        }
+      }
     } catch (err) {
       console.error("Échec de l'envoi de la sauvegarde distante (la sauvegarde locale reste valide) :", err.message);
     }
