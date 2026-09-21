@@ -589,10 +589,14 @@ describe("administration — documents and appointments", () => {
     const list = await request(app).get("/api/documents").set("Authorization", `Bearer ${managerToken}`);
     const doc = list.body.documents.find((d) => d.user_id === residentId);
 
+    const up = await request(app)
+      .post("/api/files")
+      .set("Authorization", `Bearer ${managerToken}`)
+      .attach("file", Buffer.from("%PDF-1.4\n%%EOF\n"), { filename: "test.pdf", contentType: "application/pdf" });
     const res = await request(app)
       .patch(`/api/documents/${doc.id}`)
       .set("Authorization", `Bearer ${managerToken}`)
-      .send({ status: "pret", file_url: "/uploads/test.pdf" });
+      .send({ status: "pret", file_url: up.body.file.url });
     expect(res.status).toBe(200);
     expect(res.body.document.status).toBe("pret");
 
@@ -734,5 +738,92 @@ describe("Amorçage production", () => {
     delete process.env.INITIAL_RESIDENCE_NAME;
     delete process.env.INITIAL_MANAGER_EMAIL;
     delete process.env.INITIAL_MANAGER_PASSWORD;
+  });
+});
+
+describe("Documents PDF privés", () => {
+  let residentToken, otherToken, docId, fileUrl, replyUrl;
+  const pdf = Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n");
+
+  async function makeResident(name) {
+    const reg = await request(app).post("/api/auth/register").send({
+      name, email: `${name.toLowerCase()}-${nanoid(5)}@test.fr`, password: "password123",
+      accepted_privacy: true, residence_id: residenceId, building_id: buildingId, lease_number: "BAIL-PDF",
+    });
+    db.prepare("UPDATE users SET lease_status = 'verified' WHERE id = ?").run(reg.body.user.id);
+    return reg.body.token;
+  }
+
+  beforeAll(async () => {
+    residentToken = await makeResident("Pdfun");
+    otherToken = await makeResident("Pdfdeux");
+  });
+
+  it("accepte un vrai PDF déposé par un résident", async () => {
+    const res = await request(app).post("/api/files").set("Authorization", `Bearer ${residentToken}`).attach("file", pdf, { filename: "justificatif.pdf", contentType: "application/pdf" });
+    expect(res.status).toBe(201);
+    expect(res.body.file.url).toMatch(/^\/api\/files\//);
+    fileUrl = res.body.file.url;
+  });
+
+  it("refuse un faux PDF (contenu qui ne correspond pas au format)", async () => {
+    const res = await request(app).post("/api/files").set("Authorization", `Bearer ${residentToken}`).attach("file", Buffer.from("<script>alert(1)</script>"), { filename: "faux.pdf", contentType: "application/pdf" });
+    expect(res.status).toBe(400);
+  });
+
+  it("refuse un format non autorisé", async () => {
+    const res = await request(app).post("/api/files").set("Authorization", `Bearer ${residentToken}`).attach("file", Buffer.from("MZ"), { filename: "x.exe", contentType: "application/octet-stream" });
+    expect(res.status).toBe(400);
+  });
+
+  it("refuse le dépôt sans authentification", async () => {
+    const res = await request(app).post("/api/files").attach("file", pdf, { filename: "a.pdf", contentType: "application/pdf" });
+    expect(res.status).toBe(401);
+  });
+
+  it("crée une demande avec pièce jointe, et refuse la pièce d'un autre utilisateur", async () => {
+    const stolen = await request(app).post("/api/documents").set("Authorization", `Bearer ${otherToken}`).send({ type: "attestation_residence", attachment_url: fileUrl });
+    expect(stolen.status).toBe(400);
+
+    const res = await request(app).post("/api/documents").set("Authorization", `Bearer ${residentToken}`).send({ type: "attestation_residence", attachment_url: fileUrl });
+    expect(res.status).toBe(201);
+    docId = res.body.document.id;
+  });
+
+  it("le propriétaire et le gestionnaire peuvent lire le fichier, pas un autre résident", async () => {
+    const own = await request(app).get(fileUrl).set("Authorization", `Bearer ${residentToken}`);
+    expect(own.status).toBe(200);
+    expect(own.headers["content-type"]).toContain("application/pdf");
+    const mgr = await request(app).get(fileUrl).set("Authorization", `Bearer ${managerToken}`);
+    expect(mgr.status).toBe(200);
+    const other = await request(app).get(fileUrl).set("Authorization", `Bearer ${otherToken}`);
+    expect(other.status).toBe(404);
+    const anon = await request(app).get(fileUrl);
+    expect(anon.status).toBe(401);
+  });
+
+  it("le gestionnaire répond avec un PDF, lisible ensuite par le résident concerné uniquement", async () => {
+    const up = await request(app).post("/api/files").set("Authorization", `Bearer ${managerToken}`).attach("file", pdf, { filename: "attestation.pdf", contentType: "application/pdf" });
+    expect(up.status).toBe(201);
+    replyUrl = up.body.file.url;
+
+    const patch = await request(app).patch(`/api/documents/${docId}`).set("Authorization", `Bearer ${managerToken}`).send({ status: "pret", file_url: replyUrl });
+    expect(patch.status).toBe(200);
+
+    const own = await request(app).get(replyUrl).set("Authorization", `Bearer ${residentToken}`);
+    expect(own.status).toBe(200);
+    const other = await request(app).get(replyUrl).set("Authorization", `Bearer ${otherToken}`);
+    expect(other.status).toBe(404);
+  });
+
+  it("refuse qu'un gestionnaire référence une URL arbitraire", async () => {
+    const res = await request(app).patch(`/api/documents/${docId}`).set("Authorization", `Bearer ${managerToken}`).send({ file_url: "https://evil.example/x.pdf" });
+    expect(res.status).toBe(400);
+  });
+
+  it("supprime physiquement les fichiers lors de l'effacement du compte", async () => {
+    await request(app).delete("/api/privacy").set("Authorization", `Bearer ${residentToken}`);
+    const mgr = await request(app).get(fileUrl).set("Authorization", `Bearer ${managerToken}`);
+    expect(mgr.status).toBe(404);
   });
 });

@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { FileText, CalendarClock, Download, X, Lock } from "lucide-react";
+import { FileText, CalendarClock, Download, X, Lock, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
@@ -13,6 +13,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from ".
 import { RestrictedBanner } from "../../components/RestrictedBanner";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../lib/api";
+import { uploadPrivateFile, openPrivateFile } from "../../lib/files";
 import { DOCUMENT_TYPES, DOCUMENT_STATUSES, labelFor, variantFor } from "../../lib/constants";
 import { formatDate, formatDateTime } from "../../lib/utils";
 
@@ -23,6 +24,9 @@ export function Administration() {
 
   const [docType, setDocType] = useState("");
   const [docNote, setDocNote] = useState("");
+  const [attachment, setAttachment] = useState(null);
+  const [sending, setSending] = useState(false);
+  const attachmentInput = useRef(null);
   const [appointmentNote, setAppointmentNote] = useState("");
 
   const { data: documents = [] } = useQuery({
@@ -43,14 +47,19 @@ export function Administration() {
 
   async function submitDocument(e) {
     e.preventDefault();
+    setSending(true);
     try {
-      await api.post("/documents", { type: docType, note: docNote });
+      const uploaded = attachment ? await uploadPrivateFile(attachment) : null;
+      await api.post("/documents", { type: docType, note: docNote, attachment_url: uploaded?.url || null });
       toast.success("Demande envoyée.");
       setDocType("");
       setDocNote("");
+      setAttachment(null);
       queryClient.invalidateQueries({ queryKey: ["documents"] });
     } catch (err) {
       toast.error(err.message);
+    } finally {
+      setSending(false);
     }
   }
 
@@ -128,8 +137,29 @@ export function Administration() {
                       value={docNote}
                       onChange={(e) => setDocNote(e.target.value)}
                     />
-                    <Button type="submit" className="w-full" disabled={!docType}>
-                      Envoyer la demande
+                    <input
+                      ref={attachmentInput}
+                      type="file"
+                      accept="application/pdf,image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => setAttachment(e.target.files?.[0] || null)}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button type="button" variant="outline" size="sm" onClick={() => attachmentInput.current?.click()}>
+                        <Paperclip className="h-3.5 w-3.5" />
+                        Joindre un justificatif (PDF)
+                      </Button>
+                      {attachment && (
+                        <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+                          <span className="truncate">{attachment.name}</span>
+                          <button type="button" onClick={() => setAttachment(null)} aria-label="Retirer la pièce jointe">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </span>
+                      )}
+                    </div>
+                    <Button type="submit" className="w-full" disabled={!docType || sending}>
+                      {sending ? "Envoi…" : "Envoyer la demande"}
                     </Button>
                   </form>
                 </CardContent>
@@ -144,12 +174,19 @@ export function Administration() {
                     </div>
                     {d.note && <p className="mt-1 text-xs text-muted-foreground">{d.note}</p>}
                     <p className="mt-1 text-xs text-muted-foreground">{formatDate(d.created_at)}</p>
+                    {d.attachment_url && (
+                      <button
+                        type="button"
+                        onClick={() => openPrivateFile(d.attachment_url)}
+                        className="mt-1 flex items-center gap-1 text-xs text-primary hover:underline"
+                      >
+                        <Paperclip className="h-3 w-3" /> Votre justificatif joint
+                      </button>
+                    )}
                     {d.status === "pret" && d.file_url && (
-                      <Button asChild size="sm" variant="outline" className="mt-2">
-                        <a href={d.file_url} target="_blank" rel="noreferrer">
-                          <Download className="h-3.5 w-3.5" />
-                          Télécharger
-                        </a>
+                      <Button size="sm" variant="outline" className="mt-2" onClick={() => openPrivateFile(d.file_url)}>
+                        <Download className="h-3.5 w-3.5" />
+                        Ouvrir le document
                       </Button>
                     )}
                   </div>

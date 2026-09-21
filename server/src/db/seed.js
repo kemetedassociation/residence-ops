@@ -443,7 +443,7 @@ export function seed() {
   db.prepare(
     `INSERT INTO document_requests (id, user_id, type, note, status, admin_note, file_url, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(nanoid(), resident2.id, "avis_echeance", "Besoin pour ma banque", "pret", "", "/uploads/demo-document.pdf", daysAgo(5), daysAgo(4));
+  ).run(nanoid(), resident2.id, "avis_echeance", "Besoin pour ma banque", "en_traitement", "", null, daysAgo(5), daysAgo(4));
 
   const insertSlot = db.prepare(
     `INSERT INTO availability_slots (id, staff_user_id, residence_id, start_at, end_at, is_booked, created_at)

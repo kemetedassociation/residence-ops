@@ -1,12 +1,13 @@
 import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FileText, Upload, Check, X } from "lucide-react";
+import { FileText, Upload, X, Paperclip, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Textarea } from "../../components/ui/textarea";
-import { api, getToken } from "../../lib/api";
+import { api } from "../../lib/api";
+import { uploadPrivateFile, openPrivateFile } from "../../lib/files";
 import { DOCUMENT_TYPES, DOCUMENT_STATUSES, labelFor, variantFor } from "../../lib/constants";
 import { formatDateTime } from "../../lib/utils";
 
@@ -37,12 +38,8 @@ export function DocumentRequests() {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const res = await fetch("/api/uploads", { method: "POST", headers: { Authorization: `Bearer ${getToken()}` }, body: formData });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      await api.patch(`/documents/${id}`, { file_url: data.url, status: "pret" });
+      const uploaded = await uploadPrivateFile(file);
+      await api.patch(`/documents/${id}`, { file_url: uploaded.url, status: "pret" });
       toast.success("Document envoyé au résident.");
       invalidate();
     } catch (err) {
@@ -66,6 +63,22 @@ export function DocumentRequests() {
           </div>
           {d.note && <p className="text-sm text-muted-foreground">« {d.note} »</p>}
           <p className="text-xs text-muted-foreground">{formatDateTime(d.created_at)}</p>
+          {(d.attachment_url || d.file_url) && (
+            <div className="flex flex-wrap gap-2">
+              {d.attachment_url && (
+                <Button size="sm" variant="outline" onClick={() => openPrivateFile(d.attachment_url)}>
+                  <Paperclip className="h-3.5 w-3.5" />
+                  Justificatif du résident
+                </Button>
+              )}
+              {d.file_url && (
+                <Button size="sm" variant="outline" onClick={() => openPrivateFile(d.file_url)}>
+                  <Download className="h-3.5 w-3.5" />
+                  Document envoyé
+                </Button>
+              )}
+            </div>
+          )}
 
           {(d.status === "demande" || d.status === "en_traitement") && (
             <>
@@ -83,11 +96,12 @@ export function DocumentRequests() {
                 )}
                 <Button size="sm" variant="outline" onClick={() => fileInputRefs.current[d.id]?.click()}>
                   <Upload className="h-3.5 w-3.5" />
-                  Joindre le document
+                  Joindre le document (PDF)
                 </Button>
                 <input
                   ref={(el) => (fileInputRefs.current[d.id] = el)}
                   type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/webp"
                   className="hidden"
                   onChange={(e) => handleFile(d.id, e)}
                 />

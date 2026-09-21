@@ -143,15 +143,18 @@ export const reservationCreateSchema = z.object({
 
 export const DOCUMENT_TYPES = ["attestation_residence", "avis_echeance", "autre"];
 
+const privateFileUrl = z.string().regex(/^\/api\/files\/[\w-]{10,40}$/, "Fichier invalide.");
+
 export const documentCreateSchema = z.object({
   type: z.enum(DOCUMENT_TYPES),
   note: z.string().trim().max(500).optional().default(""),
+  attachment_url: privateFileUrl.nullable().optional().default(null),
 });
 
 export const documentPatchSchema = z.object({
   status: z.enum(["demande", "en_traitement", "pret", "refuse"]).optional(),
   admin_note: z.string().trim().max(500).optional(),
-  file_url: z.string().trim().max(300).nullable().optional(),
+  file_url: privateFileUrl.nullable().optional(),
 });
 
 export const slotCreateSchema = z.object({

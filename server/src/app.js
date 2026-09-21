@@ -23,6 +23,7 @@ import { documentsRouter } from "./routes/documents.js";
 import { slotsRouter, appointmentsRouter } from "./routes/appointments.js";
 import { activitiesRouter } from "./routes/activities.js";
 import { errorsRouter } from "./routes/errors.js";
+import { filesRouter } from "./routes/files.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -55,6 +56,7 @@ app.use("/api/availability-slots", slotsRouter);
 app.use("/api/appointments", appointmentsRouter);
 app.use("/api/activities", activitiesRouter);
 app.use("/api/client-errors", errorsRouter);
+app.use("/api/files", filesRouter);
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 

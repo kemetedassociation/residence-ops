@@ -2,6 +2,7 @@ import { Router } from "express";
 import crypto from "node:crypto";
 import { nanoid } from "nanoid";
 import { db, withoutPassword } from "../db/db.js";
+import { deletePrivateFile, fileIdFromUrl } from "./files.js";
 import { requireAuth } from "../middleware/auth.js";
 
 export const privacyRouter = Router();
@@ -49,6 +50,15 @@ privacyRouter.get("/export", (req, res) => {
 privacyRouter.delete("/", (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.userId);
   if (!user) return res.status(404).json({ error: "Utilisateur introuvable." });
+
+  // Les documents administratifs (PDF, justificatifs) sont des données personnelles : ils
+  // sont supprimés physiquement, pas seulement dissociés du compte.
+  const fileIds = new Set(db.prepare("SELECT id FROM private_files WHERE uploader_id = ?").all(req.userId).map((r) => r.id));
+  db.prepare("SELECT file_url, attachment_url FROM document_requests WHERE user_id = ?")
+    .all(req.userId)
+    .forEach((r) => [r.file_url, r.attachment_url].forEach((u) => fileIdFromUrl(u) && fileIds.add(fileIdFromUrl(u))));
+  fileIds.forEach(deletePrivateFile);
+  db.prepare("UPDATE document_requests SET file_url = NULL, attachment_url = NULL WHERE user_id = ?").run(req.userId);
 
   const anonymousEmail = `utilisateur-supprime-${user.id}@anonymise.local`;
   const unusablePassword = crypto.randomBytes(32).toString("hex");
