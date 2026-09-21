@@ -12,6 +12,7 @@ const TABLES = [
   "appointments",
   "availability_slots",
   "document_requests",
+  "private_files",
   "meal_reservations",
   "menus",
   "wallet_transactions",
