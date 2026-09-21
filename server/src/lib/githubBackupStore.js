@@ -16,6 +16,12 @@ function apiUrl() {
   return `https://api.github.com/repos/${process.env.GITHUB_BACKUP_REPO}/contents/${BACKUP_PATH}`;
 }
 
+function httpError(action, status) {
+  const err = new Error(`${action} (HTTP ${status}).`);
+  err.status = status;
+  return err;
+}
+
 function headers() {
   return {
     Authorization: `Bearer ${process.env.GITHUB_BACKUP_TOKEN}`,
@@ -34,7 +40,7 @@ export async function uploadEncryptedBackup(encryptedBuffer) {
   if (existing.ok) {
     sha = (await existing.json()).sha;
   } else if (existing.status !== 404) {
-    throw new Error(`Lecture de la sauvegarde distante échouée (HTTP ${existing.status}).`);
+    throw httpError("Lecture de la sauvegarde distante échouée", existing.status);
   }
 
   const res = await fetch(apiUrl(), {
@@ -47,7 +53,7 @@ export async function uploadEncryptedBackup(encryptedBuffer) {
     }),
   });
   if (!res.ok) {
-    throw new Error(`Envoi de la sauvegarde distante échoué (HTTP ${res.status}).`);
+    throw httpError("Envoi de la sauvegarde distante échoué", res.status);
   }
   return true;
 }
@@ -58,7 +64,7 @@ export async function downloadEncryptedBackup() {
   const res = await fetch(apiUrl(), { headers: headers() });
   if (res.status === 404) return null;
   if (!res.ok) {
-    throw new Error(`Téléchargement de la sauvegarde distante échoué (HTTP ${res.status}).`);
+    throw httpError("Téléchargement de la sauvegarde distante échoué", res.status);
   }
   const { content } = await res.json();
   return Buffer.from(content, "base64");
