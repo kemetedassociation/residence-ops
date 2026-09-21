@@ -26,6 +26,7 @@ export function ResidentCard() {
   const [selected, setSelected] = useState(2000);
   const [custom, setCustom] = useState("");
   const [paying, setPaying] = useState(false);
+  const [provider, setProvider] = useState(null);
 
   const { data: payConfig } = useQuery({
     queryKey: ["payments", "config"],
@@ -38,18 +39,22 @@ export function ResidentCard() {
   useEffect(() => {
     const result = searchParams.get("paiement");
     if (!result) return;
-    const sessionId = searchParams.get("session_id");
+    const paymentId = searchParams.get("payment_id");
     setSearchParams({}, { replace: true });
     if (result === "annule") {
       toast("Paiement annulé, aucun montant n'a été débité.");
       return;
     }
-    if (result !== "succes" || !sessionId) return;
+    if (result !== "succes" || !paymentId) return;
     let cancelled = false;
     (async () => {
       for (let i = 0; i < 15 && !cancelled; i++) {
         try {
-          const p = await api.get(`/payments/status?session_id=${encodeURIComponent(sessionId)}`);
+          const p = await api.get(`/payments/status?payment_id=${encodeURIComponent(paymentId)}`);
+          if (p.status === "expired" || p.status === "failed") {
+            toast.error("Le paiement n'a pas abouti, aucun montant n'a été débité.");
+            return;
+          }
           if (p.status === "paid") {
             toast.success("Paiement reçu : votre carte a été rechargée !");
             queryClient.invalidateQueries({ queryKey: ["card", "me"] });
@@ -71,7 +76,7 @@ export function ResidentCard() {
     const cents = custom ? Math.round(Number(custom.replace(",", ".")) * 100) : selected;
     setPaying(true);
     try {
-      const { url } = await api.post("/payments/checkout", { amount_cents: cents });
+      const { url } = await api.post("/payments/checkout", { amount_cents: cents, provider: provider || payConfig.providers[0].id });
       window.location.href = url;
     } catch (err) {
       toast.error(err.message);
@@ -168,12 +173,31 @@ export function ResidentCard() {
                 value={custom}
                 onChange={(e) => setCustom(e.target.value.replace(/[^\d.,]/g, ""))}
               />
+              {payConfig.providers.length > 1 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">Payer avec</p>
+                  {payConfig.providers.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setProvider(p.id)}
+                      className={cn(
+                        "flex w-full items-center justify-between rounded-lg border px-3 py-2.5 text-left transition-colors",
+                        (provider || payConfig.providers[0].id) === p.id ? "border-primary bg-primary/10" : "border-border"
+                      )}
+                    >
+                      <span className="text-sm font-semibold">{p.label}</span>
+                      <span className="text-xs text-muted-foreground">{p.description}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <Button className="w-full" size="lg" onClick={startPayment} disabled={paying}>
                 <CreditCard className="h-4 w-4" />
-                {paying ? "Redirection vers le paiement…" : "Payer par carte bancaire"}
+                {paying ? "Redirection vers le paiement…" : "Payer en ligne"}
               </Button>
               <p className="text-xs text-muted-foreground">
-                Paiement sécurisé par Stripe : vos coordonnées bancaires ne passent jamais par Résidence Ops.
+                Paiement sécurisé sur la page du prestataire : vos coordonnées bancaires ne passent jamais par Résidence Ops.
               </p>
             </>
           ) : (

@@ -51,8 +51,9 @@ services:
         sync: false
       - key: GITHUB_BACKUP_REPO
         sync: false
-      # Paiement en ligne Stripe (voir docs/mise-en-production.md) : sans ces DEUX clés, le bouton
-      # "Payer par carte" reste désactivé et le recharge se fait à l'accueil.
+      # Paiement en ligne : les prestataires (Stripe, Mollie, PayPal, HelloAsso) se configurent depuis
+      # l'app (menu Paiements du gestionnaire). STRIPE_* reste possible ici (facultatif). APP_URL =
+      # adresse publique du site, utilisée pour les retours de paiement.
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET

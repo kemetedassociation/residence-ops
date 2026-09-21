@@ -28,24 +28,31 @@ gratuit Render** (l'app l'indique au lieu de planter). Pour les conserver, il fa
 (plan payant) : définir alors `UPLOADS_DIR=/data/uploads` — les fichiers privés suivent automatiquement dans
 `/data/private-files`.
 
-## Paiement en ligne (Stripe)
+## Paiement en ligne (Stripe, Mollie, PayPal, HelloAsso)
 
-Les résidents peuvent recharger leur porte-monnaie par carte bancaire (page « Ma carte »). Le paiement se fait sur
-la page hébergée par Stripe : aucune donnée bancaire ne passe par Résidence Ops. Le solde n'est crédité que par le
-**webhook signé** de Stripe, jamais sur simple retour du navigateur, et une seule fois même si Stripe renvoie l'événement.
-Sans configuration, le bouton est masqué et la recharge se fait à l'accueil (TPE de la résidence, puis le gestionnaire
-ajoute le montant depuis la fiche du résident, en indiquant TPE / espèces / chèque).
+Les résidents rechargent leur porte-monnaie depuis « Ma carte ». Le gestionnaire choisit les moyens proposés dans
+**Paiements** (menu de gauche) : activer un ou plusieurs prestataires, saisir ses clés (enregistrées chiffrées, jamais
+réaffichées), tester la connexion. Le paiement se fait toujours sur la page du prestataire : aucune donnée bancaire ne
+passe par Résidence Ops. L'argent va directement sur le compte que le gestionnaire configure.
 
-Mise en place (commencer en **mode test**) :
-1. Créer un compte sur stripe.com, récupérer la clé secrète de test (`sk_test_...`).
-2. Développeurs → Webhooks → Ajouter un point de terminaison : `https://VOTRE-SITE/api/payments/webhook`, événements
-   `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`,
-   `checkout.session.expired`. Copier le secret de signature (`whsec_...`).
-3. Dans Render → Environment : `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `APP_URL` (adresse publique du site).
-4. Tester avec la carte 4242 4242 4242 4242 (date future, CVC quelconque) : le solde doit augmenter.
-5. Pour encaisser pour de vrai : activer le compte Stripe (informations légales de la structure), remplacer par les clés
-   `sk_live_...` et créer le webhook en mode live.
+Sécurité : le solde n'est crédité qu'après **vérification auprès du prestataire** (webhook signé pour Stripe ; relecture du
+paiement par l'API pour Mollie, PayPal et HelloAsso), une seule fois, et seulement si le montant encaissé correspond.
+La configuration est **bloquée tant que l'application est en mode démonstration** (compte gestionnaire aux identifiants
+publics) : passez d'abord en mode production (section précédente).
 
-À savoir avant d'encaisser : Stripe prélève des frais (environ 1,5 % + 0,25 € par carte européenne) ; les remboursements se
-font à la main depuis Stripe (et le solde du résident doit être ajusté en conséquence) ; les conditions de vente et de
-remboursement du crédit doivent être affichées et validées par un juriste (statut du crédit prépayé).
+| Prestataire | À prévoir | Notes |
+|---|---|---|
+| Stripe | Clé secrète + secret de webhook | Créer le webhook (adresse et événements affichés dans la page Paiements). Apple Pay / Google Pay inclus. |
+| Mollie | Clé API | Aucune configuration de webhook : l'adresse est fournie à chaque paiement. |
+| PayPal | Client ID + Secret, environnement | Le débit n'a lieu qu'à la capture côté serveur, au retour. |
+| HelloAsso | Client ID + Secret + identifiant (slug) de l'association | Réservé aux associations ; HelloAsso ajoute une contribution volontaire ; vérifier la compatibilité avec un rechargement de crédit. Adresse de notification facultative : le retour et le bouton « Vérifier les paiements en attente » suffisent. |
+
+Chaque prestataire a un mode test (sandbox) : commencer par là. Un bouton « Vérifier les paiements en attente » rattrape un
+paiement encaissé dont la notification a été manquée.
+
+**Non testé avec de vrais comptes** : Mollie, PayPal et HelloAsso ont été écrits d'après leur documentation officielle et
+testés avec de faux serveurs. Faire un paiement de test en sandbox pour chacun avant de l'activer.
+
+À savoir avant d'encaisser : frais du prestataire (environ 1,5 % + 0,25 € par carte européenne chez Stripe/Mollie) ; les
+remboursements se font à la main chez le prestataire (et le solde du résident doit être ajusté) ; les conditions de vente et
+de remboursement du crédit doivent être validées par un juriste (statut du crédit prépayé).

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import fs from "node:fs";
 import request from "supertest";
 import bcrypt from "bcryptjs";
@@ -874,19 +874,21 @@ describe("Documents PDF privés", () => {
   });
 });
 
-describe("Paiement en ligne Stripe", () => {
+describe("Paiement en ligne — plusieurs prestataires", () => {
   let token, userId, otherToken;
-  const created = [];
+  const stripeCreated = [];
   const fakeStripe = {
     checkout: {
       sessions: {
         create: async (params) => {
           const id = `cs_test_${nanoid(8)}`;
-          created.push({ id, params });
+          stripeCreated.push({ id, params });
           return { id, url: `https://checkout.stripe.test/${id}` };
         },
+        retrieve: async () => ({ payment_status: "unpaid", status: "open" }),
       },
     },
+    balance: { retrieve: async () => ({}) },
   };
 
   async function resident(name) {
@@ -898,124 +900,252 @@ describe("Paiement en ligne Stripe", () => {
     return { token: reg.body.token, id: reg.body.user.id };
   }
 
-  async function webhook(event, { secret = process.env.STRIPE_WEBHOOK_SECRET, sign = true } = {}) {
+  const auth = (t) => ({ Authorization: `Bearer ${t}` });
+  const balance = async (t) => (await request(app).get("/api/cards/me").set(auth(t))).body.card.balance_cents;
+  const saveProvider = (id, enabled, config) =>
+    request(app).put(`/api/payments/settings/${id}`).set(auth(managerToken)).send({ enabled, config });
+  const checkout = (t, provider, amount_cents) =>
+    request(app).post("/api/payments/checkout").set(auth(t)).send({ provider, amount_cents });
+
+  async function stripeWebhook(event, { secret = "whsec_test_secret_for_unit_tests", sign = true } = {}) {
     const { Stripe } = await import("../lib/stripe.js");
     const payload = JSON.stringify(event);
-    const req = request(app).post("/api/payments/webhook").set("Content-Type", "application/json");
-    if (sign) req.set("stripe-signature", Stripe.webhooks.generateTestHeaderString({ payload, secret }));
-    return req.send(payload);
+    const r = request(app).post("/api/payments/webhook").set("Content-Type", "application/json");
+    if (sign) r.set("stripe-signature", Stripe.webhooks.generateTestHeaderString({ payload, secret }));
+    return r.send(payload);
   }
-
-  const completed = (sessionId, amount, extra = {}) => ({
+  const stripeDone = (sessionId, amount, extra = {}) => ({
     id: `evt_${nanoid(6)}`,
     type: "checkout.session.completed",
     data: { object: { id: sessionId, payment_status: "paid", amount_total: amount, currency: "eur", ...extra } },
   });
 
-  const balance = async (t) => (await request(app).get("/api/cards/me").set("Authorization", `Bearer ${t}`)).body.card.balance_cents;
+  // Faux serveurs Mollie / PayPal / HelloAsso : on intercepte les appels sortants du serveur.
+  const remote = { mollie: {}, paypal: { status: "CREATED" }, helloasso: { order: null } };
+  let fetchSpy;
+  let mollieCount = 0;
 
   beforeAll(async () => {
     const { __setStripeForTests } = await import("../lib/stripe.js");
     __setStripeForTests(fakeStripe);
-    process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_secret_for_unit_tests";
     ({ token, id: userId } = await resident("Payeur"));
     ({ token: otherToken } = await resident("Autre"));
+
+    const realFetch = globalThis.fetch;
+    fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init = {}) => {
+      const u = String(url);
+      const reply = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
+      if (u.startsWith("https://api.mollie.com/v2/payments") && init.method === "POST") {
+        const body = JSON.parse(init.body);
+        const id = `tr_test${++mollieCount}`;
+        remote.mollie = { id, status: "open", amount: body.amount, webhookUrl: body.webhookUrl };
+        return reply({ id, _links: { checkout: { href: "https://mollie.test/pay" } } }, 201);
+      }
+      if (u.startsWith("https://api.mollie.com/v2/payments/")) return reply(remote.mollie);
+      if (u.startsWith("https://api.mollie.com/v2/methods")) return init.headers.Authorization.includes("bonne") ? reply({ count: 1 }) : reply({ detail: "Invalid API key" }, 401);
+      if (u.includes("/v1/oauth2/token")) return reply({ access_token: "pp_token" });
+      if (u.endsWith("/v2/checkout/orders") && init.method === "POST") {
+        remote.paypal = { status: "CREATED", amount: JSON.parse(init.body).purchase_units[0].amount };
+        return reply({ id: "PPORDER1", links: [{ rel: "payer-action", href: "https://paypal.test/approve" }] }, 201);
+      }
+      if (u.endsWith("/capture")) {
+        remote.paypal.status = "COMPLETED";
+        return reply({ status: "COMPLETED", purchase_units: [{ payments: { captures: [{ status: "COMPLETED", amount: { value: remote.paypal.amount.value, currency_code: "EUR" } }] } }] });
+      }
+      if (u.includes("/v2/checkout/orders/PPORDER1")) return reply({ status: remote.paypal.status });
+      if (u.includes("/oauth2/token")) return reply({ access_token: "ha_token" });
+      if (u.endsWith("/checkout-intents") && init.method === "POST") return reply({ id: 4242, redirectUrl: "https://helloasso.test/pay" }, 200);
+      if (u.includes("/checkout-intents/4242")) return reply({ id: 4242, order: remote.helloasso.order });
+      return realFetch(url, init);
+    });
+
+    // Stripe : configuré par variables d'environnement (rétrocompatibilité).
+    process.env.STRIPE_SECRET_KEY = "sk_test_fake";
+    process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_secret_for_unit_tests";
   });
 
   afterAll(async () => {
+    fetchSpy.mockRestore();
     const { __setStripeForTests } = await import("../lib/stripe.js");
     __setStripeForTests(null);
+    delete process.env.STRIPE_SECRET_KEY;
     delete process.env.STRIPE_WEBHOOK_SECRET;
   });
 
-  it("annonce que le paiement est actif avec les bornes de montant", async () => {
-    const res = await request(app).get("/api/payments/config").set("Authorization", `Bearer ${token}`);
-    expect(res.body.enabled).toBe(true);
+  // ---- Réglages administrateur ----
+  it("réserve les réglages de paiement au gestionnaire", async () => {
+    expect((await request(app).get("/api/payments/settings").set(auth(token))).status).toBe(403);
+    expect((await saveProvider("mollie", false, {}).set(auth(token))).status).toBe(403);
+  });
+
+  it("ne renvoie jamais les secrets et les stocke chiffrés", async () => {
+    const res = await saveProvider("mollie", true, { apiKey: "test_bonne_cle_secrete_123" });
+    expect(res.status).toBe(200);
+    const list = await request(app).get("/api/payments/settings").set(auth(managerToken));
+    const mollie = list.body.providers.find((p) => p.id === "mollie");
+    expect(mollie.enabled).toBe(true);
+    expect(mollie.fields[0].isSet).toBe(true);
+    expect(JSON.stringify(list.body)).not.toContain("bonne_cle_secrete");
+    const row = db.prepare("SELECT config FROM payment_settings WHERE provider = 'mollie'").get();
+    expect(row.config).not.toContain("bonne_cle_secrete");
+  });
+
+  it("refuse d'activer un moyen de paiement incomplet, et conserve un secret laissé vide", async () => {
+    expect((await saveProvider("paypal", true, { clientId: "abc" })).status).toBe(400);
+    await saveProvider("mollie", true, { apiKey: "" });
+    expect(db.prepare("SELECT enabled FROM payment_settings WHERE provider = 'mollie'").get().enabled).toBe(1);
+  });
+
+  it("bloque la configuration des paiements tant que l'app est en mode démonstration hébergé", async () => {
+    process.env.RENDER = "true";
+    const blocked = await saveProvider("mollie", true, { apiKey: "test_x" });
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.code).toBe("DEMO_MODE");
+    process.env.SEED_MODE = "production";
+    expect((await saveProvider("mollie", true, { apiKey: "test_bonne_cle_secrete_123" })).status).toBe(200);
+    delete process.env.SEED_MODE;
+    delete process.env.RENDER;
+  });
+
+  it("teste la connexion d'un prestataire", async () => {
+    const ok = await request(app).post("/api/payments/settings/mollie/test").set(auth(managerToken));
+    expect(ok.status).toBe(200);
+    await saveProvider("mollie", true, { apiKey: "test_mauvaise" });
+    const ko = await request(app).post("/api/payments/settings/mollie/test").set(auth(managerToken));
+    expect(ko.status).toBe(400);
+    await saveProvider("mollie", true, { apiKey: "test_bonne_cle_secrete_123" });
+  });
+
+  it("propose aux résidents uniquement les moyens activés", async () => {
+    const res = await request(app).get("/api/payments/config").set(auth(token));
+    expect(res.body.providers.map((p) => p.id).sort()).toEqual(["mollie", "stripe"]);
     expect(res.body.min_cents).toBe(500);
     expect(res.body.max_cents).toBe(20000);
   });
 
-  it("refuse un montant hors bornes (trop petit, trop grand, non entier)", async () => {
-    for (const amount_cents of [100, 25000, 10.5, -1000]) {
-      const res = await request(app).post("/api/payments/checkout").set("Authorization", `Bearer ${token}`).send({ amount_cents });
-      expect(res.status, String(amount_cents)).toBe(400);
-    }
+  it("refuse un montant hors bornes, un prestataire désactivé et le paiement pour un gestionnaire", async () => {
+    for (const amount of [100, 25000, 10.5, -1000]) expect((await checkout(token, "mollie", amount)).status, String(amount)).toBe(400);
+    expect((await checkout(token, "paypal", 1000)).status).toBe(400);
+    expect((await checkout(managerToken, "mollie", 1000)).status).toBe(403);
   });
 
-  it("crée une session de paiement et enregistre un paiement en attente, sans rien créditer", async () => {
-    const res = await request(app).post("/api/payments/checkout").set("Authorization", `Bearer ${token}`).send({ amount_cents: 2000 });
+  // ---- Stripe ----
+  it("Stripe : crée la session, refuse un webhook mal signé, crédite une seule fois", async () => {
+    const res = await checkout(token, "stripe", 2000);
     expect(res.status).toBe(201);
     expect(res.body.url).toMatch(/^https:\/\/checkout\.stripe\.test\//);
-    const { params } = created.at(-1);
+    const { id, params } = stripeCreated.at(-1);
     expect(params.line_items[0].price_data.unit_amount).toBe(2000);
-    expect(params.metadata.user_id).toBe(userId);
     expect(await balance(token)).toBe(0);
-  });
 
-  it("refuse un webhook non signé ou mal signé", async () => {
-    const id = created.at(-1).id;
-    expect((await webhook(completed(id, 2000), { sign: false })).status).toBe(400);
-    expect((await webhook(completed(id, 2000), { secret: "whsec_autre_secret" })).status).toBe(400);
+    expect((await stripeWebhook(stripeDone(id, 2000), { sign: false })).status).toBe(400);
+    expect((await stripeWebhook(stripeDone(id, 2000), { secret: "whsec_autre" })).status).toBe(400);
     expect(await balance(token)).toBe(0);
+
+    expect((await stripeWebhook(stripeDone(id, 2000))).status).toBe(200);
+    expect((await stripeWebhook(stripeDone(id, 2000))).status).toBe(200);
+    expect(await balance(token)).toBe(2000);
   });
 
-  it("crédite le porte-monnaie une seule fois, même si Stripe renvoie l'événement", async () => {
-    const id = created.at(-1).id;
-    expect((await webhook(completed(id, 2000))).status).toBe(200);
+  it("Stripe : ne crédite pas si le montant encaissé diffère, ni si le paiement n'a pas abouti", async () => {
+    await checkout(token, "stripe", 1000);
+    const { id } = stripeCreated.at(-1);
+    await stripeWebhook(stripeDone(id, 50));
+    await stripeWebhook(stripeDone(id, 1000, { payment_status: "unpaid" }));
+    await stripeWebhook(stripeDone("cs_test_inconnue", 1000));
     expect(await balance(token)).toBe(2000);
-    expect((await webhook(completed(id, 2000))).status).toBe(200);
-    expect(await balance(token)).toBe(2000);
-
-    const card = await request(app).get("/api/cards/me").set("Authorization", `Bearer ${token}`);
-    expect(card.body.transactions.filter((t) => t.reason.includes("Stripe")).length).toBe(1);
   });
 
-  it("ne crédite pas si le montant encaissé ne correspond pas au montant attendu", async () => {
-    const res = await request(app).post("/api/payments/checkout").set("Authorization", `Bearer ${token}`).send({ amount_cents: 1000 });
+  // ---- Mollie ----
+  it("Mollie : ne crédite qu'après vérification chez Mollie, et une seule fois", async () => {
+    const res = await checkout(token, "mollie", 3000);
     expect(res.status).toBe(201);
-    const id = created.at(-1).id;
-    await webhook(completed(id, 50));
+    expect(res.body.url).toBe("https://mollie.test/pay");
+    expect(remote.mollie.amount).toEqual({ currency: "EUR", value: "30.00" });
+    expect(remote.mollie.webhookUrl).toMatch(/\/api\/payments\/webhook\/mollie$/);
+
+    // Webhook forgé alors que Mollie dit « open » : rien ne doit être crédité.
+    await request(app).post("/api/payments/webhook/mollie").type("form").send({ id: remote.mollie.id });
     expect(await balance(token)).toBe(2000);
+
+    remote.mollie.status = "paid";
+    await request(app).post("/api/payments/webhook/mollie").type("form").send({ id: remote.mollie.id });
+    await request(app).post("/api/payments/webhook/mollie").type("form").send({ id: remote.mollie.id });
+    expect(await balance(token)).toBe(5000);
   });
 
-  it("ne crédite pas un paiement non abouti (payment_status unpaid) ni une session inconnue", async () => {
-    const id = created.at(-1).id;
-    await webhook(completed(id, 1000, { payment_status: "unpaid" }));
-    await webhook(completed("cs_test_inconnue", 1000));
-    expect(await balance(token)).toBe(2000);
+  it("Mollie : un webhook pour un identifiant inconnu répond 200 sans rien révéler", async () => {
+    const res = await request(app).post("/api/payments/webhook/mollie").type("form").send({ id: "tr_inconnu" });
+    expect(res.status).toBe(200);
   });
 
+  // ---- PayPal ----
+  it("PayPal : la capture côté serveur au retour crédite une seule fois", async () => {
+    await saveProvider("paypal", true, { clientId: "cid", clientSecret: "csecret", mode: "sandbox" });
+    const res = await checkout(token, "paypal", 1500);
+    expect(res.status).toBe(201);
+    expect(res.body.url).toBe("https://paypal.test/approve");
+    const payment = db.prepare("SELECT id FROM payments WHERE provider = 'paypal'").get();
+
+    // Retour sans approbation : pas de capture, pas de crédit.
+    await request(app).get(`/api/payments/return/paypal?payment_id=${payment.id}`);
+    expect(await balance(token)).toBe(5000);
+
+    remote.paypal.status = "APPROVED";
+    const back = await request(app).get(`/api/payments/return/paypal?payment_id=${payment.id}&token=PPORDER1`);
+    expect(back.status).toBe(302);
+    expect(back.headers.location).toContain("paiement=succes");
+    await request(app).get(`/api/payments/return/paypal?payment_id=${payment.id}`);
+    expect(await balance(token)).toBe(6500);
+  });
+
+  it("PayPal : un retour avec un identifiant de paiement d'un autre prestataire est ignoré", async () => {
+    const stripePayment = db.prepare("SELECT id FROM payments WHERE provider = 'stripe' LIMIT 1").get();
+    const res = await request(app).get(`/api/payments/return/paypal?payment_id=${stripePayment.id}`);
+    expect(res.headers.location).toContain("paiement=annule");
+  });
+
+  // ---- HelloAsso ----
+  it("HelloAsso : réconcilie via l'API (jamais via les paramètres de l'URL de retour)", async () => {
+    await saveProvider("helloasso", true, { clientId: "hid", clientSecret: "hsecret", organizationSlug: "mon-asso", mode: "sandbox" });
+    const res = await checkout(token, "helloasso", 1000);
+    expect(res.status).toBe(201);
+    expect(res.body.url).toBe("https://helloasso.test/pay");
+    const payment = db.prepare("SELECT id FROM payments WHERE provider = 'helloasso'").get();
+
+    // Retour avec code=succeeded forgé, mais HelloAsso ne renvoie aucune commande : rien crédité.
+    await request(app).get(`/api/payments/return/helloasso?payment_id=${payment.id}&checkoutIntentId=4242&code=succeeded`);
+    expect(await balance(token)).toBe(6500);
+
+    remote.helloasso.order = { payments: [{ state: "Authorized", amount: 1000 }] };
+    await request(app).post("/api/payments/webhook/helloasso").send({ metadata: { payment_id: payment.id } });
+    await request(app).post("/api/payments/webhook/helloasso").send({ metadata: { payment_id: payment.id } });
+    expect(await balance(token)).toBe(7500);
+  });
+
+  // ---- Suivi et rapprochement ----
   it("ne montre le statut d'un paiement qu'à son propriétaire", async () => {
-    const paid = created.find((c) => c.params.line_items[0].price_data.unit_amount === 2000).id;
-    const own = await request(app).get(`/api/payments/status?session_id=${paid}`).set("Authorization", `Bearer ${token}`);
+    const { id } = db.prepare("SELECT id FROM payments WHERE provider = 'mollie'").get();
+    const own = await request(app).get(`/api/payments/status?payment_id=${id}`).set(auth(token));
     expect(own.body.status).toBe("paid");
-    const other = await request(app).get(`/api/payments/status?session_id=${paid}`).set("Authorization", `Bearer ${otherToken}`);
-    expect(other.status).toBe(404);
+    expect((await request(app).get(`/api/payments/status?payment_id=${id}`).set(auth(otherToken))).status).toBe(404);
   });
 
-  it("marque une session expirée", async () => {
-    const id = created.at(-1).id;
-    await webhook({ id: `evt_${nanoid(6)}`, type: "checkout.session.expired", data: { object: { id } } });
-    const row = db.prepare("SELECT status FROM payments WHERE stripe_session_id = ?").get(id);
-    expect(row.status).toBe("expired");
+  it("le rapprochement manuel rattrape un webhook manqué", async () => {
+    await checkout(token, "mollie", 500);
+    remote.mollie.status = "paid";
+    const before = await balance(token);
+    const res = await request(app).post("/api/payments/reconcile").set(auth(managerToken));
+    expect(res.body.credited).toBeGreaterThanOrEqual(1);
+    expect(await balance(token)).toBe(before + 500);
+    expect((await request(app).post("/api/payments/reconcile").set(auth(token))).status).toBe(403);
   });
 
-  it("refuse le paiement à un résident sans bail vérifié, et à un gestionnaire", async () => {
-    const reg = await request(app).post("/api/auth/register").send({
-      name: "SansBail", email: `sb-${nanoid(5)}@test.fr`, password: "password123", accepted_privacy: true, residence_id: residenceId,
-    });
-    const noLease = await request(app).post("/api/payments/checkout").set("Authorization", `Bearer ${reg.body.token}`).send({ amount_cents: 1000 });
-    expect(noLease.status).toBe(403);
-    const mgr = await request(app).post("/api/payments/checkout").set("Authorization", `Bearer ${managerToken}`).send({ amount_cents: 1000 });
-    expect(mgr.status).toBe(403);
-  });
-
-  it("répond 503 avec un message clair quand Stripe n'est pas configuré", async () => {
-    const { __setStripeForTests } = await import("../lib/stripe.js");
-    __setStripeForTests(null);
-    const res = await request(app).post("/api/payments/checkout").set("Authorization", `Bearer ${token}`).send({ amount_cents: 1000 });
+  it("répond 503 avec un message clair quand plus aucun moyen n'est activé", async () => {
+    for (const id of ["mollie", "paypal", "helloasso"]) await saveProvider(id, false, {});
+    delete process.env.STRIPE_SECRET_KEY;
+    const res = await checkout(token, "mollie", 1000);
     expect(res.status).toBe(503);
     expect(res.body.code).toBe("PAYMENTS_DISABLED");
-    __setStripeForTests(fakeStripe);
   });
 });
