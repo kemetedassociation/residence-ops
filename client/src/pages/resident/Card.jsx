@@ -1,7 +1,11 @@
-import { useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import QRCode from "qrcode";
-import { Wallet, ArrowDownCircle, ArrowUpCircle, Lock } from "lucide-react";
+import { Wallet, ArrowDownCircle, ArrowUpCircle, Lock, CreditCard, Store } from "lucide-react";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
 import { Card as UiCard, CardContent } from "../../components/ui/card";
 import { RestrictedBanner } from "../../components/RestrictedBanner";
 import { useAuth } from "../../context/AuthContext";
@@ -17,6 +21,63 @@ export function ResidentCard() {
   const { user } = useAuth();
   const hasLease = user?.lease_status === "verified";
   const canvasRef = useRef(null);
+  const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [selected, setSelected] = useState(2000);
+  const [custom, setCustom] = useState("");
+  const [paying, setPaying] = useState(false);
+
+  const { data: payConfig } = useQuery({
+    queryKey: ["payments", "config"],
+    queryFn: () => api.get("/payments/config"),
+    enabled: hasLease,
+  });
+
+  // Retour depuis Stripe : le webhook qui crédite le solde peut arriver quelques secondes après
+  // la redirection, on interroge donc le serveur jusqu'à confirmation.
+  useEffect(() => {
+    const result = searchParams.get("paiement");
+    if (!result) return;
+    const sessionId = searchParams.get("session_id");
+    setSearchParams({}, { replace: true });
+    if (result === "annule") {
+      toast("Paiement annulé, aucun montant n'a été débité.");
+      return;
+    }
+    if (result !== "succes" || !sessionId) return;
+    let cancelled = false;
+    (async () => {
+      for (let i = 0; i < 15 && !cancelled; i++) {
+        try {
+          const p = await api.get(`/payments/status?session_id=${encodeURIComponent(sessionId)}`);
+          if (p.status === "paid") {
+            toast.success("Paiement reçu : votre carte a été rechargée !");
+            queryClient.invalidateQueries({ queryKey: ["card", "me"] });
+            return;
+          }
+        } catch {
+          // on réessaie
+        }
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      if (!cancelled) toast("Paiement en cours de validation : votre solde sera mis à jour dans quelques instants.");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function startPayment() {
+    const cents = custom ? Math.round(Number(custom.replace(",", ".")) * 100) : selected;
+    setPaying(true);
+    try {
+      const { url } = await api.post("/payments/checkout", { amount_cents: cents });
+      window.location.href = url;
+    } catch (err) {
+      toast.error(err.message);
+      setPaying(false);
+    }
+  }
 
   const { data } = useQuery({
     queryKey: ["card", "me"],
@@ -72,6 +133,60 @@ export function ResidentCard() {
           <p className="text-center text-xs text-muted-foreground">
             Présentez ce code au personnel pour un règlement (ex. restaurant) ou une vérification d'identité.
           </p>
+        </CardContent>
+      </UiCard>
+
+      <UiCard>
+        <CardContent className="space-y-4 p-5">
+          <p className="flex items-center gap-2 font-semibold">
+            <CreditCard className="h-4 w-4" /> Recharger ma carte
+          </p>
+
+          {payConfig?.enabled ? (
+            <>
+              <div className="grid grid-cols-3 gap-2">
+                {payConfig.presets_cents.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => {
+                      setSelected(c);
+                      setCustom("");
+                    }}
+                    className={cn(
+                      "rounded-lg border px-2 py-2.5 text-sm font-semibold transition-all active:scale-95",
+                      !custom && selected === c ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"
+                    )}
+                  >
+                    {c / 100} €
+                  </button>
+                ))}
+              </div>
+              <Input
+                inputMode="decimal"
+                placeholder={`Autre montant (${payConfig.min_cents / 100} à ${payConfig.max_cents / 100} €)`}
+                value={custom}
+                onChange={(e) => setCustom(e.target.value.replace(/[^\d.,]/g, ""))}
+              />
+              <Button className="w-full" size="lg" onClick={startPayment} disabled={paying}>
+                <CreditCard className="h-4 w-4" />
+                {paying ? "Redirection vers le paiement…" : "Payer par carte bancaire"}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Paiement sécurisé par Stripe : vos coordonnées bancaires ne passent jamais par Résidence Ops.
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Le paiement en ligne n'est pas encore activé dans votre résidence.</p>
+          )}
+
+          <div className="flex items-start gap-3 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
+            <Store className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Vous préférez payer sur place ? Rendez-vous à l'accueil : réglez au terminal de paiement (TPE) de la résidence et le
+              gestionnaire ajoute le montant à votre solde.
+            </span>
+          </div>
         </CardContent>
       </UiCard>
 

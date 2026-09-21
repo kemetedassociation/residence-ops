@@ -24,6 +24,7 @@ import { slotsRouter, appointmentsRouter } from "./routes/appointments.js";
 import { activitiesRouter } from "./routes/activities.js";
 import { errorsRouter } from "./routes/errors.js";
 import { filesRouter } from "./routes/files.js";
+import { paymentsRouter, stripeWebhook } from "./routes/payments.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -32,6 +33,11 @@ export const app = express();
 // render.yaml). Sans variable définie (dev local, ou avant configuration), on reste
 // permissif pour ne pas bloquer le développement.
 app.use(cors({ origin: process.env.ALLOWED_ORIGIN || true, credentials: true }));
+// Derrière le proxy de Render : sans ceci, req.ip vaut l'adresse du proxy pour tout le monde et
+// les limiteurs de débit (connexion, paiement...) partageraient un seul compteur global.
+app.set("trust proxy", 1);
+// Webhook Stripe : corps brut requis pour vérifier la signature, donc AVANT express.json().
+app.post("/api/payments/webhook", express.raw({ type: "application/json" }), stripeWebhook);
 app.use(express.json());
 app.use("/uploads", express.static(uploadsDir));
 
@@ -57,6 +63,7 @@ app.use("/api/appointments", appointmentsRouter);
 app.use("/api/activities", activitiesRouter);
 app.use("/api/client-errors", errorsRouter);
 app.use("/api/files", filesRouter);
+app.use("/api/payments", paymentsRouter);
 
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 

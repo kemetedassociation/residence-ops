@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -74,9 +75,10 @@ export function Restaurant() {
           <h1 className="text-xl font-bold">Restaurant</h1>
         </div>
         {hasLease && card?.card && (
-          <div className="text-right text-sm opacity-90">
+          <Link to="/ma-carte" className="text-right text-sm opacity-90 active:scale-95">
             Solde : {(card.card.balance_cents / 100).toFixed(2)} €
-          </div>
+            <span className="block text-xs underline">Recharger</span>
+          </Link>
         )}
       </div>
 

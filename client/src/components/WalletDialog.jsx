@@ -16,6 +16,7 @@ function formatCents(cents) {
 export function WalletDialog({ userId, userName, open, onOpenChange }) {
   const queryClient = useQueryClient();
   const [amount, setAmount] = useState("");
+  const [method, setMethod] = useState("TPE");
   const [reason, setReason] = useState("Recharge à l'accueil");
   const [submitting, setSubmitting] = useState(false);
 
@@ -29,7 +30,10 @@ export function WalletDialog({ userId, userName, open, onOpenChange }) {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.post(`/cards/${userId}/credit`, { amount_cents: Math.round(Number(amount) * 100), reason });
+      await api.post(`/cards/${userId}/credit`, {
+        amount_cents: Math.round(Number(amount.replace(",", ".")) * 100),
+        reason: `${reason} — ${method}`,
+      });
       toast.success("Solde crédité.");
       setAmount("");
       queryClient.invalidateQueries({ queryKey: ["card", userId] });
@@ -59,10 +63,28 @@ export function WalletDialog({ userId, userName, open, onOpenChange }) {
         </div>
 
         <form onSubmit={handleCredit} className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>Moyen de paiement encaissé à l'accueil</Label>
+            <div className="grid grid-cols-4 gap-2">
+              {["TPE", "Espèces", "Chèque", "Autre"].map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMethod(m)}
+                  className={cn(
+                    "rounded-lg border px-2 py-2 text-xs font-medium transition-colors",
+                    method === m ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"
+                  )}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Montant (€)</Label>
-              <Input type="number" min="0.01" step="0.01" required value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <Input inputMode="decimal" required value={amount} onChange={(e) => setAmount(e.target.value.replace(/[^\d.,]/g, ""))} />
             </div>
             <div className="space-y-1.5">
               <Label>Motif</Label>

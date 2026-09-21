@@ -51,6 +51,14 @@ services:
         sync: false
       - key: GITHUB_BACKUP_REPO
         sync: false
+      # Paiement en ligne Stripe (voir docs/mise-en-production.md) : sans ces DEUX clés, le bouton
+      # "Payer par carte" reste désactivé et le recharge se fait à l'accueil.
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: APP_URL
+        sync: false
       # Passage en usage réel (voir docs/mise-en-production.md) : SEED_MODE=production crée une
       # vraie résidence + un gestionnaire au lieu des comptes de démonstration (manager123...).
       # - key: SEED_MODE
