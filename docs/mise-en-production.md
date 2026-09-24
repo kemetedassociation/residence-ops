@@ -56,3 +56,11 @@ testés avec de faux serveurs. Faire un paiement de test en sandbox pour chacun 
 À savoir avant d'encaisser : frais du prestataire (environ 1,5 % + 0,25 € par carte européenne chez Stripe/Mollie) ; les
 remboursements se font à la main chez le prestataire (et le solde du résident doit être ajusté) ; les conditions de vente et
 de remboursement du crédit doivent être validées par un juriste (statut du crédit prépayé).
+
+## Pièces jointes des signalements (photos et PDF)
+
+Au signalement, le résident joint des photos ou des PDF et choisit qui peut les voir : **réservé à la gestion** (par
+défaut, avec le technicien et lui-même) ou **visible par les résidents** de la résidence. Ces fichiers passent par le
+stockage sécurisé (mêmes règles que les documents administratifs) : ils ne sont jamais servis publiquement. Les
+anciens signalements gardent leurs photos publiques d'origine. Comme les autres fichiers, ils sont perdus à chaque
+redéploiement sur le plan gratuit Render.

@@ -1,3 +1,4 @@
+import { Attachments } from "./Attachments";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Trash2, MapPin, Calendar } from "lucide-react";
 import { toast } from "sonner";
@@ -76,13 +77,7 @@ export function IncidentActionSheet({ incident, buildingName, reporterName, tech
 
         <p className="mt-4 text-sm leading-relaxed">{incident.description}</p>
 
-        {incident.photo_urls?.length > 0 && (
-          <div className="mt-4 flex gap-2 overflow-x-auto">
-            {incident.photo_urls.map((url) => (
-              <img key={url} src={url} alt="" className="h-40 w-40 shrink-0 rounded-lg object-cover" />
-            ))}
-          </div>
-        )}
+        <Attachments incident={incident} />
 
         <p className="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
           <Calendar className="h-3.5 w-3.5" /> Signalé le {formatDateTime(incident.created_at)}

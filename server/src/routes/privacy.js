@@ -57,7 +57,10 @@ privacyRouter.delete("/", (req, res) => {
   db.prepare("SELECT file_url, attachment_url FROM document_requests WHERE user_id = ?")
     .all(req.userId)
     .forEach((r) => [r.file_url, r.attachment_url].forEach((u) => fileIdFromUrl(u) && fileIds.add(fileIdFromUrl(u))));
-  fileIds.forEach(deletePrivateFile);
+  fileIds.forEach((id) => {
+    db.prepare("DELETE FROM incident_photos WHERE url = ?").run(`/api/files/${id}`);
+    deletePrivateFile(id);
+  });
   db.prepare("UPDATE document_requests SET file_url = NULL, attachment_url = NULL WHERE user_id = ?").run(req.userId);
 
   const anonymousEmail = `utilisateur-supprime-${user.id}@anonymise.local`;

@@ -36,7 +36,13 @@ export const incidentCreateSchema = z.object({
   room: z.string().trim().max(120).optional().default(""),
   description: z.string().trim().min(5).max(2000),
   priority: z.enum(["urgent", "normal", "faible"]).optional().default("normal"),
-  photo_urls: z.array(z.string().max(300)).max(6).optional().default([]),
+  // Envoi sécurisé (/api/files/<id>) ou ancien envoi public (/uploads/<fichier>, images seulement).
+  photo_urls: z
+    .array(z.string().regex(/^\/(uploads\/[\w.-]{1,120}|api\/files\/[\w-]{10,40})$/, "Pièce jointe invalide."))
+    .max(6)
+    .optional()
+    .default([]),
+  photos_visibility: z.enum(["public", "private"]).optional(),
 });
 
 export const incidentPatchSchema = z.object({

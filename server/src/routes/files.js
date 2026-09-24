@@ -126,7 +126,17 @@ filesRouter.post(
 function canAccess(userId, role, file) {
   if (file.uploader_id === userId) return true;
   const url = fileUrl(file.id);
-  if (role === "manager") return residenceIdForUser(userId) === file.residence_id;
+  const userResidence = residenceIdForUser(userId);
+  const sameResidence = !!userResidence && userResidence === file.residence_id;
+  if (role === "manager") return sameResidence;
+
+  // Pièce jointe d'un signalement : le technicien y accède ; un autre résident seulement si son
+  // auteur l'a rendue publique.
+  const incident = db
+    .prepare("SELECT i.photos_visibility FROM incident_photos p JOIN incidents i ON i.id = p.incident_id WHERE p.url = ?")
+    .get(url);
+  if (incident && sameResidence && (role === "technicien" || incident.photos_visibility === "public")) return true;
+
   return !!db
     .prepare("SELECT 1 FROM document_requests WHERE user_id = ? AND (file_url = ? OR attachment_url = ?)")
     .get(userId, url, url);

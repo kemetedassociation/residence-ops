@@ -1149,3 +1149,93 @@ describe("Paiement en ligne — plusieurs prestataires", () => {
     expect(res.body.code).toBe("PAYMENTS_DISABLED");
   });
 });
+
+describe("Visibilité des pièces jointes d'un signalement", () => {
+  let author, neighbour, techToken;
+  const pdf = Buffer.from("%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n");
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.alloc(16)]);
+  const auth = (t) => ({ Authorization: `Bearer ${t}` });
+
+  async function resident(name) {
+    const reg = await request(app).post("/api/auth/register").send({
+      name, email: `${name.toLowerCase()}-${nanoid(5)}@test.fr`, password: "password123",
+      accepted_privacy: true, residence_id: residenceId, building_id: buildingId, lease_number: "BAIL-VIS",
+    });
+    db.prepare("UPDATE users SET lease_status = 'verified' WHERE id = ?").run(reg.body.user.id);
+    return { token: reg.body.token, id: reg.body.user.id };
+  }
+  const upload = (t, buf, filename, contentType) => request(app).post("/api/files").set(auth(t)).attach("file", buf, { filename, contentType });
+  const report = (t, body) => request(app).post("/api/incidents").set(auth(t)).send({ type: "eau", description: "Fuite visible dans le couloir", building_id: buildingId, ...body });
+  const seenBy = async (t, id) => (await request(app).get("/api/incidents").set(auth(t))).body.incidents.find((i) => i.id === id);
+
+  beforeAll(async () => {
+    author = await resident("Auteur");
+    neighbour = await resident("Voisin");
+    const techId = nanoid();
+    const techEmail = `tech-vis-${nanoid(5)}@test.fr`;
+    db.prepare("INSERT INTO users (id, role, name, email, password, residence_id, created_at) VALUES (?, 'technicien', 'Tech Vis', ?, ?, ?, ?)")
+      .run(techId, techEmail, bcrypt.hashSync("password123", 10), residenceId, new Date().toISOString());
+    techToken = (await request(app).post("/api/auth/login").send({ email: techEmail, password: "password123" })).body.token;
+  });
+
+  it("un signalement privé cache ses pièces jointes aux autres résidents mais pas à la gestion, au technicien ni à l'auteur", async () => {
+    const pdfUp = await upload(author.token, pdf, "devis.pdf", "application/pdf");
+    const imgUp = await upload(author.token, png, "photo.png", "image/png");
+    const res = await report(author.token, { photos_visibility: "private", photo_urls: [pdfUp.body.file.url, imgUp.body.file.url] });
+    expect(res.status).toBe(201);
+    expect(res.body.incident.photos_visibility).toBe("private");
+    expect(res.body.incident.attachments.map((a) => a.mime).sort()).toEqual(["application/pdf", "image/png"]);
+    const id = res.body.incident.id;
+
+    const other = await seenBy(neighbour.token, id);
+    expect(other.photo_urls).toEqual([]);
+    expect(other.attachments).toEqual([]);
+    expect(other.photos_hidden).toBe(true);
+
+    for (const t of [author.token, managerToken, techToken]) {
+      const seen = await seenBy(t, id);
+      expect(seen.attachments.length).toBe(2);
+      expect((await request(app).get(pdfUp.body.file.url).set(auth(t))).status).toBe(200);
+    }
+    expect((await request(app).get(pdfUp.body.file.url).set(auth(neighbour.token))).status).toBe(404);
+    expect((await request(app).get(pdfUp.body.file.url)).status).toBe(401);
+  });
+
+  it("un signalement public montre ses pièces jointes aux résidents de la résidence", async () => {
+    const up = await upload(author.token, pdf, "plan.pdf", "application/pdf");
+    const res = await report(author.token, { photos_visibility: "public", photo_urls: [up.body.file.url] });
+    const seen = await seenBy(neighbour.token, res.body.incident.id);
+    expect(seen.attachments[0]).toMatchObject({ name: "plan.pdf", mime: "application/pdf" });
+    expect(seen.photos_hidden).toBe(false);
+    expect((await request(app).get(up.body.file.url).set(auth(neighbour.token))).status).toBe(200);
+  });
+
+  it("est privé par défaut quand le résident ne choisit rien", async () => {
+    const up = await upload(author.token, png, "a.png", "image/png");
+    const res = await report(author.token, { photo_urls: [up.body.file.url] });
+    expect(res.body.incident.photos_visibility).toBe("private");
+  });
+
+  it("refuse la pièce jointe d'un autre, une URL arbitraire, et un fichier public déclaré privé", async () => {
+    const mine = await upload(author.token, png, "b.png", "image/png");
+    expect((await report(neighbour.token, { photo_urls: [mine.body.file.url] })).status).toBe(400);
+    expect((await report(author.token, { photo_urls: ["https://evil.example/x.png"] })).status).toBe(400);
+    expect((await report(author.token, { photos_visibility: "private", photo_urls: ["/uploads/abc.png"] })).status).toBe(400);
+  });
+
+  it("garde la compatibilité avec un ancien client qui n'envoie que des fichiers publics", async () => {
+    const res = await report(author.token, { photo_urls: ["/uploads/ancienne-photo.png"] });
+    expect(res.status).toBe(201);
+    expect(res.body.incident.photos_visibility).toBe("public");
+  });
+
+  it("la suppression du compte retire les pièces jointes privées du signalement", async () => {
+    const solo = await resident("Efface");
+    const up = await upload(solo.token, pdf, "perso.pdf", "application/pdf");
+    const res = await report(solo.token, { photo_urls: [up.body.file.url] });
+    await request(app).delete("/api/privacy").set(auth(solo.token));
+    const seen = await seenBy(managerToken, res.body.incident.id);
+    expect(seen.attachments).toEqual([]);
+    expect((await request(app).get(up.body.file.url).set(auth(managerToken))).status).toBe(404);
+  });
+});

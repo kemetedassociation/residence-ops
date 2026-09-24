@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X, MapPin, ThumbsUp, Calendar, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "./ui/button";
+import { Attachments } from "./Attachments";
 import { IncidentTypeIcon } from "./IncidentTypeIcon";
 import { StatusBadge } from "./StatusBadge";
 import { INCIDENT_PRIORITIES, labelFor, variantFor } from "../lib/constants";
@@ -120,13 +121,7 @@ export function IncidentDetailSheet({ incident, buildingName, currentUserId, can
 
         <IncidentTimeline incident={incident} />
 
-        {incident.photo_urls?.length > 0 && (
-          <div className="mt-4 flex gap-2 overflow-x-auto">
-            {incident.photo_urls.map((url) => (
-              <img key={url} src={url} alt="Photo de l'incident" className="h-40 w-40 shrink-0 rounded-lg object-cover" />
-            ))}
-          </div>
-        )}
+        <Attachments incident={incident} />
 
         <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
           <span className="flex items-center gap-1">

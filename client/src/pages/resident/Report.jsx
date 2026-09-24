@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Camera, X, AlertTriangle, Lock, Clock, ChevronLeft, ChevronRight, Check } from "lucide-react";
+import { Camera, X, AlertTriangle, Lock, Clock, ChevronLeft, ChevronRight, Check, FileText, Users, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "../../components/ui/card";
 import { Label } from "../../components/ui/label";
@@ -11,12 +11,18 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from ".
 import { IncidentTypeIcon } from "../../components/IncidentTypeIcon";
 import { RestrictedBanner } from "../../components/RestrictedBanner";
 import { useAuth } from "../../context/AuthContext";
-import { api, getToken } from "../../lib/api";
+import { api } from "../../lib/api";
+import { uploadPrivateFile } from "../../lib/files";
 import { INCIDENT_TYPES, HERO_IMAGES, INCIDENT_PRIORITIES, labelFor } from "../../lib/constants";
 import { containsBadWords, censorText, getSuggestion } from "../../lib/profanity";
 import { cn } from "../../lib/utils";
 
 const MAX_PHOTOS = 6;
+const ATTACHMENT_ACCEPT = "image/*,.pdf,.heic,.heif";
+const VISIBILITY_OPTIONS = [
+  { value: "private", icon: Lock, title: "Réservé à la gestion", hint: "Seuls la gestion et le technicien voient vos pièces jointes (recommandé)." },
+  { value: "public", icon: Users, title: "Visible par les résidents", hint: "Les résidents de la résidence peuvent aussi les voir." },
+];
 const STEPS = ["Type et lieu", "Détails", "Photos", "Récapitulatif"];
 
 export function Report() {
@@ -28,6 +34,7 @@ export function Report() {
   const [buildings, setBuildings] = useState([]);
   const [form, setForm] = useState({ type: "", title: "", floor: "", building_id: "", description: "", priority: "normal" });
   const [photos, setPhotos] = useState([]);
+  const [visibility, setVisibility] = useState("private");
   const [submitting, setSubmitting] = useState(false);
   const [suggestion, setSuggestion] = useState("");
   const [step, setStep] = useState(0);
@@ -47,7 +54,7 @@ export function Report() {
 
   function handlePhotoChange(e) {
     const files = Array.from(e.target.files || []).slice(0, MAX_PHOTOS - photos.length);
-    const next = files.map((file) => ({ file, preview: URL.createObjectURL(file) }));
+    const next = files.map((file) => ({ file, preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : null }));
     setPhotos((prev) => [...prev, ...next]);
     e.target.value = "";
   }
@@ -67,31 +74,21 @@ export function Report() {
     }
     setSubmitting(true);
     try {
-      // Envois en parallèle : bien plus rapide que photo par photo, surtout sur mobile.
-      const photo_urls = await Promise.all(
-        photos.map(async ({ file }) => {
-          const formData = new FormData();
-          formData.append("file", file);
-          const res = await fetch("/api/uploads", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${getToken()}` },
-            body: formData,
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "Échec de l'envoi de la photo.");
-          return data.url;
-        })
-      );
+      // Envois en parallèle, vers le stockage sécurisé (photos ET documents PDF) : l'accès est ensuite
+      // contrôlé selon le choix de visibilité du résident.
+      const photo_urls = (await Promise.all(photos.map(({ file }) => uploadPrivateFile(file)))).map((f) => f.url);
 
       await api.post("/incidents", {
         ...form,
         description: censorText(form.description),
         photo_urls,
+        photos_visibility: visibility,
       });
 
       toast.success("Signalement envoyé avec succès.");
       setForm({ type: "", title: "", floor: "", building_id: "", description: "", priority: "normal" });
       setPhotos([]);
+      setVisibility("private");
       setStep(0);
       setSent(true);
     } catch (err) {
@@ -277,36 +274,73 @@ export function Report() {
           )}
 
           {step === 2 && (
-            <div className="space-y-1.5">
-              <Label>
-                Photos (optionnelles, {photos.length}/{MAX_PHOTOS})
-              </Label>
-              <p className="text-xs text-muted-foreground">Une photo aide la gestion à comprendre et traiter plus vite le problème.</p>
-              <div className="flex flex-wrap gap-2">
-                {photos.map((p, i) => (
-                  <div key={p.preview} className="relative">
-                    <img src={p.preview} alt="Aperçu" className="h-20 w-20 rounded-lg object-cover" />
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>
+                  Photos et documents (optionnels, {photos.length}/{MAX_PHOTOS})
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Photos, PDF (constat, devis, courrier…) : 10 Mo maximum par fichier.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {photos.map((p, i) => (
+                    <div key={`${p.file.name}-${i}`} className="relative">
+                      {p.preview ? (
+                        <img src={p.preview} alt="Aperçu" className="h-20 w-20 rounded-lg object-cover" />
+                      ) : (
+                        <div className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-border bg-muted p-1 text-center">
+                          <FileText className="h-6 w-6 text-primary" />
+                          <span className="w-full truncate text-[10px] text-muted-foreground">{p.file.name}</span>
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removePhoto(i)}
+                        className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
+                        aria-label="Retirer"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {photos.length < MAX_PHOTOS && (
                     <button
                       type="button"
-                      onClick={() => removePhoto(i)}
-                      className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border text-muted-foreground"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <Paperclip className="h-5 w-5" />
+                      <span className="text-[11px]">Ajouter</span>
                     </button>
-                  </div>
-                ))}
-                {photos.length < MAX_PHOTOS && (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border text-muted-foreground"
-                  >
-                    <Camera className="h-5 w-5" />
-                    <span className="text-[11px]">Ajouter</span>
-                  </button>
-                )}
+                  )}
+                </div>
+                <input ref={fileInputRef} type="file" accept={ATTACHMENT_ACCEPT} multiple className="hidden" onChange={handlePhotoChange} />
               </div>
-              <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoChange} />
+
+              {photos.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Qui peut voir ces pièces jointes ?</Label>
+                  <div className="space-y-2">
+                    {VISIBILITY_OPTIONS.map(({ value, icon: Icon, title, hint }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setVisibility(value)}
+                        className={cn(
+                          "flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                          visibility === value ? "border-primary bg-primary/10" : "border-border"
+                        )}
+                      >
+                        <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", visibility === value ? "text-primary" : "text-muted-foreground")} />
+                        <span>
+                          <span className="block text-sm font-semibold">{title}</span>
+                          <span className="block text-xs text-muted-foreground">{hint}</span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -324,10 +358,23 @@ export function Report() {
                 </div>
                 <p className="whitespace-pre-wrap text-muted-foreground">{form.description}</p>
                 {photos.length > 0 && (
-                  <div className="flex gap-2 overflow-x-auto">
-                    {photos.map((p) => (
-                      <img key={p.preview} src={p.preview} alt="Aperçu" className="h-16 w-16 shrink-0 rounded-md object-cover" />
-                    ))}
+                  <div className="space-y-2">
+                    <div className="flex gap-2 overflow-x-auto">
+                      {photos.map((p, i) =>
+                        p.preview ? (
+                          <img key={i} src={p.preview} alt="Aperçu" className="h-16 w-16 shrink-0 rounded-md object-cover" />
+                        ) : (
+                          <div key={i} className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-md bg-muted p-1">
+                            <FileText className="h-5 w-5 text-primary" />
+                            <span className="w-full truncate text-center text-[9px] text-muted-foreground">{p.file.name}</span>
+                          </div>
+                        )
+                      )}
+                    </div>
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      {visibility === "private" ? <Lock className="h-3 w-3" /> : <Users className="h-3 w-3" />}
+                      {visibility === "private" ? "Pièces jointes visibles uniquement par la gestion" : "Pièces jointes visibles par les résidents"}
+                    </p>
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">Vérifiez ces informations, puis envoyez votre signalement.</p>
