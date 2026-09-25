@@ -79,6 +79,16 @@ export function PrivacyPolicy() {
       </section>
 
       <section className="space-y-2 text-sm leading-relaxed">
+        <h2 className="text-lg font-semibold">5 bis. Accompagnement psychologique (données de santé)</h2>
+        <p>
+          Si vous prenez rendez-vous avec un psychologue ou un professionnel de santé via « Besoin d'aide », votre nom, votre chambre, le créneau choisi et le
+          message facultatif que vous rédigez sont des <b>données de santé</b>, traitées uniquement avec votre consentement. Elles ne sont accessibles qu'à vous et au
+          professionnel concerné ; <b>la gestion de la résidence n'y a pas accès</b> et ne voit que des statistiques anonymes. Votre e-mail et votre téléphone ne lui sont
+          transmis que si vous cochez la case prévue. Vous pouvez annuler un rendez-vous à tout moment ; la suppression de votre compte efface vos rendez-vous.
+        </p>
+      </section>
+
+      <section className="space-y-2 text-sm leading-relaxed">
         <h2 className="text-lg font-semibold">6. Cookies et stockage local</h2>
         <p>
           L'application n'utilise aucun cookie de mesure d'audience ni publicitaire. Un jeton de connexion et vos

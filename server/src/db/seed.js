@@ -8,6 +8,9 @@ function hash(pw) {
 }
 
 const TABLES = [
+  "care_appointments",
+  "care_slots",
+  "care_professionals",
   "activities",
   "appointments",
   "availability_slots",
@@ -518,10 +521,44 @@ export function seed() {
     created_at: daysAgo(3),
   });
 
+  // Accompagnement psychologique (démonstration) : profils FICTIFS, clairement signalés comme tels.
+  // En production (SEED_MODE=production), aucun professionnel n'est créé : le gestionnaire saisit
+  // les vrais professionnels, qui activent eux-mêmes leur accès par invitation.
+  const insertPro = db.prepare(
+    `INSERT INTO care_professionals (id, residence_id, name, title, specialties, languages, bio, phone, email, address, mode, free, active, access_hash, created_at)
+     VALUES (@id, @residence_id, @name, @title, @specialties, @languages, @bio, @phone, @email, @address, @mode, @free, 1, @access_hash, @created_at)`
+  );
+  const demoPros = [
+    { name: "Dr Camille Renaud (démo)", title: "Psychologue clinicienne", specialties: ["Stress et anxiété", "Baisse de moral", "Stress des études"], languages: ["Français", "Anglais"], mode: "les_deux", email: "psy.demo@residence-ops.fr", address: "Permanence à la résidence — salle d'écoute" },
+    { name: "Karim Haddad (démo)", title: "Psychologue — thérapies brèves", specialties: ["Dépression", "Troubles du sommeil", "Deuil"], languages: ["Français", "Arabe"], mode: "visio", email: "karim.demo@residence-ops.fr", address: "" },
+    { name: "Dr Élise Marchand (démo)", title: "Médecin généraliste — santé des étudiants", specialties: ["Premier accueil", "Orientation vers un spécialiste"], languages: ["Français"], mode: "presentiel", email: "elise.demo@residence-ops.fr", address: "Cabinet à 5 min de la résidence" },
+  ];
+  demoPros.forEach((p, idx) => {
+    const id = nanoid();
+    insertPro.run({
+      id, residence_id: residenceId, name: p.name, title: p.title, specialties: JSON.stringify(p.specialties), languages: JSON.stringify(p.languages),
+      bio: "Profil fictif de démonstration : remplacé par les vrais professionnels de la résidence en production.", phone: "", email: p.email,
+      address: p.address, mode: p.mode, free: 1,
+      // Seule la première fiche a un accès de démonstration (mot de passe public, démo uniquement).
+      access_hash: idx === 0 ? hash("psychologue-demo-2026") : null, created_at: daysAgo(30),
+    });
+    for (let d = 1; d <= 10; d++) {
+      const day = new Date(now.getTime() + d * 86400000);
+      if (day.getUTCDay() === 0 || day.getUTCDay() === 6) continue;
+      [9, 11, 14, 16].slice(0, idx === 0 ? 4 : 2).forEach((h) => {
+        const start = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), h, 0, 0));
+        db.prepare("INSERT INTO care_slots (id, professional_id, start_at, end_at, is_booked, created_at) VALUES (?, ?, ?, ?, 0, ?)").run(
+          nanoid(), id, start.toISOString(), new Date(start.getTime() + 3600000).toISOString(), now.toISOString()
+        );
+      });
+    }
+  });
+
   console.log("Base de données SQLite initialisée avec les données de démo.");
   console.log("Gestionnaire         : manager@residence-ops.fr / manager123");
   console.log("Résident (vérifié)   : etudiant@residence-ops.fr / resident123");
   console.log("Résident (en attente): sofia.rossi@residence-ops.fr / resident123");
+  console.log("Psychologue (démo)   : psy.demo@residence-ops.fr / psychologue-demo-2026");
 }
 
 // Exécuté seulement quand ce fichier est lancé directement (npm run seed / seed:prod),

@@ -16,6 +16,7 @@ import {
   AlertTriangle,
   Download,
   CreditCard,
+  HeartHandshake,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useBranding } from "../context/BrandingContext";
@@ -31,6 +32,7 @@ const navItems = [
   { to: "/manager/rendez-vous", label: "Rendez-vous", icon: CalendarCheck },
   { to: "/manager/loisirs", label: "Loisirs", icon: PartyPopper },
   { to: "/manager/utilisateurs", label: "Utilisateurs", icon: Users },
+  { to: "/manager/accompagnement", label: "Accompagnement", icon: HeartHandshake },
   { to: "/manager/paiements", label: "Paiements", icon: CreditCard },
   { to: "/manager/erreurs", label: "Erreurs", icon: AlertTriangle },
   { to: "/manager/parametres", label: "Paramètres", icon: SettingsIcon },

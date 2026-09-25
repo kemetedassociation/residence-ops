@@ -54,7 +54,11 @@ export function Select() {
         </Link>
       </div>
 
-      <Link to="/telecharger" className="mt-8 text-sm text-muted-foreground underline-offset-4 hover:underline">
+      <Link to="/aide" className="mt-6 rounded-full bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-600">
+        Besoin d'aide ? Numéros d'urgence et écoute
+      </Link>
+
+      <Link to="/telecharger" className="mt-6 text-sm text-muted-foreground underline-offset-4 hover:underline">
         Télécharger l'application mobile
       </Link>
     </div>

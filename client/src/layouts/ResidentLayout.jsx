@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Menu, Home, MegaphoneIcon, Map, Newspaper, User, Bell, Wallet, UtensilsCrossed, FileText, PartyPopper, Lightbulb, Download } from "lucide-react";
+import { Menu, HeartHandshake, Home, MegaphoneIcon, Map, Newspaper, User, Bell, Wallet, UtensilsCrossed, FileText, PartyPopper, Lightbulb, Download } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { Avatar, AvatarFallback } from "../components/ui/avatar";
@@ -22,6 +22,7 @@ const tabItemsRight = [
 const reportItem = { to: "/signaler", label: "Signaler", icon: MegaphoneIcon };
 
 const shortcutItems = [
+  { to: "/aide", label: "Besoin d'aide", icon: HeartHandshake },
   { to: "/ma-carte", label: "Ma carte", icon: Wallet },
   { to: "/restaurant", label: "Restaurant", icon: UtensilsCrossed },
   { to: "/administration", label: "Administration", icon: FileText },
@@ -75,6 +76,14 @@ export function ResidentLayout() {
         </button>
 
         <div className="flex items-center gap-3">
+          <NavLink
+            to="/aide"
+            className="flex items-center gap-1.5 rounded-full bg-rose-500/10 px-3 py-1.5 text-xs font-semibold text-rose-600 transition-all active:scale-95"
+            aria-label="Besoin d'aide"
+          >
+            <HeartHandshake className="h-4 w-4" />
+            Aide
+          </NavLink>
           <NavLink
             to="/notifications"
             className="relative rounded-full p-2 text-muted-foreground transition-all duration-150 hover:bg-accent active:scale-90"

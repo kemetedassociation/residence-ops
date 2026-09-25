@@ -64,3 +64,18 @@ défaut, avec le technicien et lui-même) ou **visible par les résidents** de l
 stockage sécurisé (mêmes règles que les documents administratifs) : ils ne sont jamais servis publiquement. Les
 anciens signalements gardent leurs photos publiques d'origine. Comme les autres fichiers, ils sont perdus à chaque
 redéploiement sur le plan gratuit Render.
+
+## Accompagnement psychologique (bouton « Besoin d'aide »)
+
+- **Numéros d'urgence** (3114, 15, 112, etc.) affichés dans `client/src/lib/care.js` : à **faire vérifier avant la mise en
+  production** (ils peuvent changer). La page `/aide` est publique : elle reste accessible sans connexion.
+- **Professionnels** : le gestionnaire les ajoute dans « Accompagnement » et transmet à chacun un lien d'invitation à usage
+  unique (14 jours). Le professionnel choisit lui-même son mot de passe sur `/psy` : ensuite, **personne d'autre** ne peut lire
+  son agenda, pas même la gestion. Si un professionnel perd son mot de passe, on ne peut pas le réinviter (protection contre la
+  prise de contrôle) : supprimer sa fiche, puis la recréer (ses rendez-vous sont annulés et les résidents prévenus).
+- **Confidentialité** : la gestion ne voit que des compteurs. Les rendez-vous sont des données de santé (RGPD, art. 9) : la
+  politique de confidentialité en fait mention ; faire valider ce point par un juriste, et vérifier que chaque professionnel est
+  bien autorisé à exercer et a donné son accord pour figurer dans l'annuaire.
+- Les profils de la démo sont **fictifs** : ils n'existent pas en mode production (`SEED_MODE=production`).
+- Ajout à l'agenda : fichier .ics, Google Agenda, Outlook ; le professionnel peut aussi s'abonner à un agenda partagé (adresse
+  secrète, affichée une seule fois). Le titre des événements côté résident est neutre (« Rendez-vous — Nom »).

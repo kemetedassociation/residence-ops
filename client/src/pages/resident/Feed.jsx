@@ -11,6 +11,7 @@ import {
   FileText,
   PartyPopper,
   MegaphoneIcon,
+  HeartHandshake,
   ChevronRight,
 } from "lucide-react";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../components/ui/select";
@@ -142,6 +143,17 @@ export function Feed() {
             </div>
           ))}
         </div>
+
+        <NavLink to="/aide" className="flex items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/5 p-3 active:scale-[0.99]">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-rose-500/15 text-rose-600">
+            <HeartHandshake className="h-5 w-5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold">Besoin de parler ?</span>
+            <span className="block text-xs text-muted-foreground">Des psychologues sont là pour vous, en toute confidentialité.</span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </NavLink>
 
         {featuredPost && (
           <NavLink

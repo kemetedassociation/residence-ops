@@ -27,6 +27,14 @@ privacyRouter.get("/export", (req, res) => {
     consents: db.prepare("SELECT type, version, accepted_at FROM consents WHERE user_id = ?").all(req.userId),
   };
 
+  data.care_appointments = db
+    .prepare(
+      `SELECT a.id, a.status, a.note, s.start_at, s.end_at, p.name AS professional_name
+       FROM care_appointments a JOIN care_slots s ON s.id = a.slot_id JOIN care_professionals p ON p.id = a.professional_id
+       WHERE a.resident_id = ?`
+    )
+    .all(req.userId);
+
   const card = db.prepare("SELECT * FROM resident_cards WHERE user_id = ?").get(req.userId);
   if (card) {
     data.resident_card = card;
@@ -50,6 +58,13 @@ privacyRouter.get("/export", (req, res) => {
 privacyRouter.delete("/", (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.userId);
   if (!user) return res.status(404).json({ error: "Utilisateur introuvable." });
+
+  // Rendez-vous d'accompagnement : données de santé, supprimés (et créneaux libérés) à l'effacement.
+  db.transaction(() => {
+    const appts = db.prepare("SELECT id, slot_id FROM care_appointments WHERE resident_id = ?").all(req.userId);
+    appts.forEach((a) => db.prepare("UPDATE care_slots SET is_booked = 0 WHERE id = ?").run(a.slot_id));
+    db.prepare("DELETE FROM care_appointments WHERE resident_id = ?").run(req.userId);
+  })();
 
   // Les documents administratifs (PDF, justificatifs) sont des données personnelles : ils
   // sont supprimés physiquement, pas seulement dissociés du compte.

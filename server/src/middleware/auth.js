@@ -17,6 +17,8 @@ export function requireAuth(req, res, next) {
   }
   try {
     const payload = jwt.verify(header.slice(7), JWT_SECRET);
+    // Les jetons des professionnels de santé (accès séparé) ne donnent accès à AUCUNE route utilisateur.
+    if (payload.kind === "care") return res.status(401).json({ error: "Session invalide, merci de vous reconnecter." });
     req.userId = payload.id;
     req.userRole = payload.role;
     next();
@@ -43,4 +45,24 @@ export function requireLease(req, res, next) {
     });
   }
   next();
+}
+
+// Accès des professionnels de santé (psychologues) : jeton distinct de celui des utilisateurs.
+export function signCareToken(professional) {
+  return jwt.sign({ kind: "care", care_pro_id: professional.id }, JWT_SECRET, { expiresIn: "12h" });
+}
+
+export function requireCarePro(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header?.startsWith("Bearer ")) return res.status(401).json({ error: "Non authentifié." });
+  try {
+    const payload = jwt.verify(header.slice(7), JWT_SECRET);
+    if (payload.kind !== "care") return res.status(403).json({ error: "Accès refusé." });
+    const pro = db.prepare("SELECT * FROM care_professionals WHERE id = ? AND active = 1").get(payload.care_pro_id);
+    if (!pro) return res.status(401).json({ error: "Session invalide." });
+    req.pro = pro;
+    next();
+  } catch {
+    return res.status(401).json({ error: "Session invalide, merci de vous reconnecter." });
+  }
 }

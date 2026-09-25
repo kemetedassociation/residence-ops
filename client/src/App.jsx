@@ -33,6 +33,9 @@ import { NewsManager } from "./pages/manager/NewsManager";
 import { UsersDirectory } from "./pages/manager/UsersDirectory";
 import { ErrorLog } from "./pages/manager/ErrorLog";
 import { PaymentSettings } from "./pages/manager/PaymentSettings";
+import { CareProfessionals } from "./pages/manager/CareProfessionals";
+import { Help } from "./pages/resident/Help";
+import { PsyPortal } from "./pages/psy/PsyPortal";
 import { Settings } from "./pages/manager/Settings";
 import { MenuManager } from "./pages/manager/MenuManager";
 import { DocumentRequests } from "./pages/manager/DocumentRequests";
@@ -48,6 +51,8 @@ export default function App() {
       <Route path="/admin-login" element={<AdminLogin />} />
       <Route path="/inscription-resident" element={<ResidentSignup />} />
       <Route path="/telecharger" element={<Download />} />
+      <Route path="/aide" element={<Help />} />
+      <Route path="/psy" element={<PsyPortal />} />
       <Route path="/mot-de-passe-oublie" element={<ForgotPassword />} />
       <Route path="/reinitialiser-mot-de-passe" element={<ResetPassword />} />
       <Route path="/confidentialite" element={<PrivacyPolicy />} />
@@ -192,6 +197,14 @@ export default function App() {
           element={
             <ProtectedRoute role="manager">
               <UsersDirectory />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manager/accompagnement"
+          element={
+            <ProtectedRoute role="manager">
+              <CareProfessionals />
             </ProtectedRoute>
           }
         />

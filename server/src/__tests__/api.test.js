@@ -1266,3 +1266,168 @@ describe("Sauvegarde GitHub — robustesse de la configuration", () => {
     expect(error.message).not.toContain("github_pat_secret");
   });
 });
+
+describe("Accompagnement psychologique", () => {
+  const auth = (t) => ({ Authorization: `Bearer ${t}` });
+  let res1, res2, proId, invite, proToken, feed, slotIds;
+  const future = (hours) => new Date(Date.now() + hours * 3600 * 1000).toISOString();
+  const proEmail = `psy-${nanoid(5)}@test.fr`;
+
+  async function resident(name, lease = "none") {
+    const reg = await request(app).post("/api/auth/register").send({
+      name, email: `${name.toLowerCase()}-${nanoid(5)}@test.fr`, password: "password123",
+      accepted_privacy: true, residence_id: residenceId, building_id: buildingId, room: "12",
+    });
+    return { token: reg.body.token, id: reg.body.user.id };
+  }
+
+  beforeAll(async () => {
+    res1 = await resident("Aidee"); // volontairement SANS bail vérifié
+    res2 = await resident("Curieux");
+  });
+
+  it("l'annuaire est public (sans connexion) et réservé aux professionnels actifs", async () => {
+    const created = await request(app).post("/api/care/manage/professionals").set(auth(managerToken)).send({
+      name: "Dr Test Psy", title: "Psychologue clinicien", specialties: ["Anxiété", "Stress des études"], languages: ["Français"],
+      email: proEmail, phone: "0600000000", mode: "les_deux", free: true,
+    });
+    expect(created.status).toBe(201);
+    proId = created.body.professional.id;
+    invite = created.body.invite_code;
+    expect(created.body.professional.claimed).toBe(false);
+
+    const list = await request(app).get("/api/care/professionals");
+    expect(list.status).toBe(200);
+    const pro = list.body.professionals.find((p) => p.id === proId);
+    expect(pro.specialties).toContain("Anxiété");
+    expect(pro.invite_hash).toBeUndefined();
+    expect(JSON.stringify(list.body)).not.toContain("access_hash");
+  });
+
+  it("réserve la gestion de l'annuaire au gestionnaire", async () => {
+    expect((await request(app).get("/api/care/manage/professionals").set(auth(res1.token))).status).toBe(403);
+    expect((await request(app).post("/api/care/manage/professionals").send({})).status).toBe(401);
+  });
+
+  it("le professionnel active son invitation (usage unique) et choisit son mot de passe", async () => {
+    const weak = await request(app).post("/api/care/pro/claim").send({ invite_code: invite, password: "court" });
+    expect(weak.status).toBe(400);
+    const bad = await request(app).post("/api/care/pro/claim").send({ invite_code: "code-inexistant-123", password: "un-mot-de-passe-solide" });
+    expect(bad.status).toBe(400);
+
+    const ok = await request(app).post("/api/care/pro/claim").send({ invite_code: invite, password: "un-mot-de-passe-solide" });
+    expect(ok.status).toBe(201);
+    proToken = ok.body.token;
+    feed = ok.body.feed_token;
+    expect((await request(app).post("/api/care/pro/claim").send({ invite_code: invite, password: "autre-mot-de-passe-solide" })).status).toBe(400);
+  });
+
+  it("la gestion ne peut PAS réinviter (donc s'approprier) un compte déjà activé", async () => {
+    const res = await request(app).post(`/api/care/manage/professionals/${proId}/invite`).set(auth(managerToken));
+    expect(res.status).toBe(409);
+  });
+
+  it("un jeton de professionnel n'ouvre aucune route utilisateur, et inversement", async () => {
+    expect((await request(app).get("/api/notifications").set(auth(proToken))).status).toBe(401);
+    expect((await request(app).get("/api/care/pro/appointments").set(auth(res1.token))).status).toBe(403);
+    expect((await request(app).get("/api/care/pro/appointments").set(auth(managerToken))).status).toBe(403);
+  });
+
+  it("connexion du professionnel : refuse un mauvais mot de passe", async () => {
+    expect((await request(app).post("/api/care/pro/login").send({ email: proEmail, password: "faux-mot-de-passe" })).status).toBe(401);
+    expect((await request(app).post("/api/care/pro/login").send({ email: proEmail, password: "un-mot-de-passe-solide" })).status).toBe(200);
+  });
+
+  it("le professionnel publie ses créneaux (les chevauchements et le passé sont ignorés)", async () => {
+    const slots = [
+      { start_at: future(48), end_at: future(49) },
+      { start_at: future(50), end_at: future(51) },
+      { start_at: future(48.5), end_at: future(49.5) }, // chevauche le premier
+      { start_at: future(-5), end_at: future(-4) }, // passé
+    ];
+    const res = await request(app).post("/api/care/pro/slots").set(auth(proToken)).send({ slots });
+    expect(res.body.created).toBe(2);
+    slotIds = (await request(app).get(`/api/care/professionals/${proId}/slots`).set(auth(res1.token))).body.slots.map((s) => s.id);
+    expect(slotIds.length).toBe(2);
+  });
+
+  it("un résident SANS bail vérifié peut réserver (l'aide n'est jamais conditionnée)", async () => {
+    const res = await request(app).post("/api/care/appointments").set(auth(res1.token)).send({ slot_id: slotIds[0], note: "Je me sens dépassé(e)", share_contact: false });
+    expect(res.status).toBe(201);
+    expect(res.body.appointment.professional_name).toBe("Dr Test Psy");
+  });
+
+  it("un créneau ne peut être réservé qu'une fois", async () => {
+    const res = await request(app).post("/api/care/appointments").set(auth(res2.token)).send({ slot_id: slotIds[0] });
+    expect(res.status).toBe(409);
+  });
+
+  it("le professionnel voit le rendez-vous ; le contact n'apparaît que si le résident l'a partagé", async () => {
+    const list = await request(app).get("/api/care/pro/appointments").set(auth(proToken));
+    expect(list.body.appointments.length).toBe(1);
+    expect(list.body.appointments[0].resident.name).toBe("Aidee");
+    expect(list.body.appointments[0].resident.email).toBeUndefined();
+    expect(list.body.appointments[0].note).toContain("dépassé");
+  });
+
+  it("la gestion ne voit que des compteurs : aucun rendez-vous, aucune identité", async () => {
+    const list = await request(app).get("/api/care/manage/professionals").set(auth(managerToken));
+    const pro = list.body.professionals.find((p) => p.id === proId);
+    expect(pro.appointments_total).toBe(1);
+    expect(pro.claimed).toBe(true);
+    expect(JSON.stringify(list.body)).not.toContain("Aidee");
+    expect(JSON.stringify(list.body)).not.toContain("dépassé");
+    expect((await request(app).get("/api/care/appointments/mine").set(auth(managerToken))).status).toBe(403);
+  });
+
+  it("fichier d'agenda (.ics) : titre neutre, réservé au propriétaire", async () => {
+    const mine = await request(app).get("/api/care/appointments/mine").set(auth(res1.token));
+    const id = mine.body.appointments[0].id;
+    const ics = await request(app).get(`/api/care/appointments/${id}/ics`).set(auth(res1.token));
+    expect(ics.status).toBe(200);
+    expect(ics.headers["content-type"]).toContain("text/calendar");
+    expect(ics.text).toContain("BEGIN:VEVENT");
+    expect(ics.text).toContain("SUMMARY:Rendez-vous — Dr Test Psy");
+    expect(ics.text).not.toContain("dépassé");
+    expect((await request(app).get(`/api/care/appointments/${id}/ics`).set(auth(res2.token))).status).toBe(404);
+  });
+
+  it("agenda partagé (abonnement) : lisible avec le jeton secret uniquement", async () => {
+    const ok = await request(app).get(`/api/care/feed/${feed}.ics`);
+    expect(ok.status).toBe(200);
+    expect(ok.text).toContain("SUMMARY:Consultation — Aidee");
+    expect((await request(app).get("/api/care/feed/mauvais-jeton.ics")).status).toBe(404);
+  });
+
+  it("annulation : le créneau est libéré ; le résident ne peut pas annuler le rendez-vous d'un autre", async () => {
+    const mine = (await request(app).get("/api/care/appointments/mine").set(auth(res1.token))).body.appointments[0];
+    expect((await request(app).patch(`/api/care/appointments/${mine.id}/cancel`).set(auth(res2.token))).status).toBe(404);
+    expect((await request(app).patch(`/api/care/appointments/${mine.id}/cancel`).set(auth(res1.token))).status).toBe(200);
+    const free = (await request(app).get(`/api/care/professionals/${proId}/slots`).set(auth(res2.token))).body.slots;
+    expect(free.length).toBe(2);
+  });
+
+  it("limite à 3 rendez-vous à venir par résident", async () => {
+    await request(app).post("/api/care/pro/slots").set(auth(proToken)).send({
+      slots: [3, 4, 5, 6].map((d) => ({ start_at: future(24 * d), end_at: future(24 * d + 1) })),
+    });
+    const slots = (await request(app).get(`/api/care/professionals/${proId}/slots`).set(auth(res2.token))).body.slots;
+    const results = [];
+    for (const s of slots.slice(0, 4)) results.push((await request(app).post("/api/care/appointments").set(auth(res2.token)).send({ slot_id: s.id })).status);
+    expect(results).toEqual([201, 201, 201, 409]);
+  });
+
+  it("l'effacement du compte supprime les rendez-vous et libère les créneaux", async () => {
+    await request(app).delete("/api/privacy").set(auth(res2.token));
+    const free = (await request(app).get(`/api/care/professionals/${proId}/slots`).set(auth(res1.token))).body.slots;
+    expect(free.length).toBe(6);
+  });
+
+  it("supprimer un professionnel annule ses rendez-vous", async () => {
+    const slot = (await request(app).get(`/api/care/professionals/${proId}/slots`).set(auth(res1.token))).body.slots[0];
+    await request(app).post("/api/care/appointments").set(auth(res1.token)).send({ slot_id: slot.id });
+    expect((await request(app).delete(`/api/care/manage/professionals/${proId}`).set(auth(managerToken))).status).toBe(204);
+    expect((await request(app).get("/api/care/appointments/mine").set(auth(res1.token))).body.appointments).toEqual([]);
+    expect((await request(app).get("/api/care/professionals")).body.professionals.find((p) => p.id === proId)).toBeUndefined();
+  });
+});
