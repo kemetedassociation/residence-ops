@@ -42,8 +42,8 @@ async function restore() {
       // 401/403 = token invalide, expiré ou sans droit sur le dépôt : réessayer ne changera rien,
       // et l'envoi de sauvegardes échouera de la même façon (donc rien ne peut être écrasé).
       // Bloquer tout le déploiement pour une variable mal saisie rendrait le site inaccessible.
-      if (err.status === 401 || err.status === 403) {
-        console.error(`ATTENTION : accès au dépôt de sauvegarde refusé (${err.message}). Vérifiez GITHUB_BACKUP_TOKEN et GITHUB_BACKUP_REPO dans Render. Démarrage SANS restauration.`);
+      if (err.status === 401 || err.status === 403 || err.configError) {
+        console.error(`ATTENTION : accès au dépôt de sauvegarde impossible (${err.message}). Vérifiez GITHUB_BACKUP_TOKEN et GITHUB_BACKUP_REPO dans Render. Démarrage SANS restauration.`);
         return;
       }
       lastError = err;

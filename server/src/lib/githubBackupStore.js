@@ -8,12 +8,38 @@ const BACKUP_PATH = "latest.sqlite.enc";
 // voie (JSON+base64). Largement suffisant pour une petite résidence au démarrage ; si la base
 // grossit significativement, il faudra passer par l'API Git Data (blobs) à la place.
 
+// Un token copié-collé dans un tableau de bord contient souvent un retour à la ligne, une espace ou
+// un caractère invisible en trop, voire des guillemets : fetch refuse alors l'en-tête entier. Un
+// token GitHub ne contient que des caractères ASCII imprimables sans espace : on ne garde que ceux-là.
+export function cleanToken(raw) {
+  return String(raw || "")
+    .replace(/[^\x21-\x7e]/g, "")
+    .replace(/^["']+|["']+$/g, "");
+}
+
+function cleanRepo(raw) {
+  return String(raw || "").replace(/[^\x21-\x7e]/g, "").replace(/^["']+|["']+$/g, "").replace(/^\/+|\/+$/g, "");
+}
+
 function isConfigured() {
-  return !!(process.env.GITHUB_BACKUP_TOKEN && process.env.GITHUB_BACKUP_REPO);
+  return !!(cleanToken(process.env.GITHUB_BACKUP_TOKEN) && cleanRepo(process.env.GITHUB_BACKUP_REPO));
 }
 
 function apiUrl() {
-  return `https://api.github.com/repos/${process.env.GITHUB_BACKUP_REPO}/contents/${BACKUP_PATH}`;
+  return `https://api.github.com/repos/${cleanRepo(process.env.GITHUB_BACKUP_REPO)}/contents/${BACKUP_PATH}`;
+}
+
+// Le message d'erreur natif de fetch peut CONTENIR la valeur de l'en-tête, donc le token en clair :
+// on ne le laisse jamais atteindre les journaux.
+async function github(url, init) {
+  try {
+    return await fetch(url, init);
+  } catch (err) {
+    if (err instanceof TypeError && /header/i.test(err.message)) {
+      throw Object.assign(new Error("Le jeton GitHub de sauvegarde contient des caractères invalides."), { configError: true });
+    }
+    throw new Error(`Réseau indisponible (${err.cause?.code || "erreur inconnue"}).`);
+  }
 }
 
 function httpError(action, status) {
@@ -24,7 +50,7 @@ function httpError(action, status) {
 
 function headers() {
   return {
-    Authorization: `Bearer ${process.env.GITHUB_BACKUP_TOKEN}`,
+    Authorization: `Bearer ${cleanToken(process.env.GITHUB_BACKUP_TOKEN)}`,
     Accept: "application/vnd.github+json",
     "Content-Type": "application/json",
   };
@@ -36,14 +62,14 @@ export async function uploadEncryptedBackup(encryptedBuffer) {
   // Une mise à jour de fichier exige le sha de la version actuelle (sinon GitHub refuse) —
   // on le récupère d'abord ; 404 = premier envoi, pas d'erreur.
   let sha;
-  const existing = await fetch(apiUrl(), { headers: headers() });
+  const existing = await github(apiUrl(), { headers: headers() });
   if (existing.ok) {
     sha = (await existing.json()).sha;
   } else if (existing.status !== 404) {
     throw httpError("Lecture de la sauvegarde distante échouée", existing.status);
   }
 
-  const res = await fetch(apiUrl(), {
+  const res = await github(apiUrl(), {
     method: "PUT",
     headers: headers(),
     body: JSON.stringify({
@@ -61,7 +87,7 @@ export async function uploadEncryptedBackup(encryptedBuffer) {
 export async function downloadEncryptedBackup() {
   if (!isConfigured()) return null;
 
-  const res = await fetch(apiUrl(), { headers: headers() });
+  const res = await github(apiUrl(), { headers: headers() });
   if (res.status === 404) return null;
   if (!res.ok) {
     throw httpError("Téléchargement de la sauvegarde distante échoué", res.status);

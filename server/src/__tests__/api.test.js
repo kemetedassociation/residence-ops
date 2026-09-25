@@ -1239,3 +1239,30 @@ describe("Visibilité des pièces jointes d'un signalement", () => {
     expect((await request(app).get(up.body.file.url).set(auth(managerToken))).status).toBe(404);
   });
 });
+
+describe("Sauvegarde GitHub — robustesse de la configuration", () => {
+  it("nettoie un token collé avec retour à la ligne, espaces, guillemets ou caractères invisibles", async () => {
+    const { cleanToken } = await import("../lib/githubBackupStore.js");
+    expect(cleanToken('  "github_pat_abc123"\n')).toBe("github_pat_abc123");
+    expect(cleanToken("github_pat_abc​123\r\n")).toBe("github_pat_abc123");
+    expect(cleanToken(undefined)).toBe("");
+  });
+
+  it("transforme l'erreur d'en-tête invalide en erreur de configuration SANS divulguer le token", async () => {
+    const { downloadEncryptedBackup } = await import("../lib/githubBackupStore.js");
+    process.env.GITHUB_BACKUP_TOKEN = "github_pat_secret";
+    process.env.GITHUB_BACKUP_REPO = "compte/depot";
+    const spy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError('Headers.append: "Bearer github_pat_secret" is an invalid header value.'));
+    let error;
+    try {
+      await downloadEncryptedBackup();
+    } catch (e) {
+      error = e;
+    }
+    spy.mockRestore();
+    delete process.env.GITHUB_BACKUP_TOKEN;
+    delete process.env.GITHUB_BACKUP_REPO;
+    expect(error.configError).toBe(true);
+    expect(error.message).not.toContain("github_pat_secret");
+  });
+});
