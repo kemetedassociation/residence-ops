@@ -133,7 +133,7 @@ incidentsRouter.post("/", requireRole("resident"), requireLease, validate(incide
   if (priority === "urgent" && building_id) {
     notifyBuilding(
       building_id,
-      { title: "Incident urgent signalé", message: `« ${incident.title} » vient d'être signalé.`, type: "alerte" },
+      { title: "Incident urgent signalé", message: `« ${incident.title} » vient d'être signalé.`, type: "alerte", link: `/?incident=${incident.id}` },
       { excludeUserId: req.userId }
     );
   }
@@ -169,6 +169,7 @@ incidentsRouter.patch("/:id", requireRole("manager", "technicien"), validate(inc
         message: `Un technicien va intervenir pour « ${incident.title} ».`,
         type: "intervention",
         target_building_id: incident.building_id,
+        link: `/?incident=${incident.id}`,
       });
     }
   }
@@ -182,11 +183,12 @@ incidentsRouter.patch("/:id", requireRole("manager", "technicien"), validate(inc
         message: `Votre signalement « ${incident.title} » a été résolu.`,
         type: "resolution",
         target_building_id: incident.building_id,
+        link: `/?incident=${incident.id}`,
       });
       if (incident.building_id) {
         notifyBuilding(
           incident.building_id,
-          { title: "Incident résolu", message: `« ${incident.title} » a été résolu.`, type: "resolution" },
+          { title: "Incident résolu", message: `« ${incident.title} » a été résolu.`, type: "resolution", link: `/?incident=${incident.id}` },
           { excludeUserId: incident.reporter_id }
         );
       }

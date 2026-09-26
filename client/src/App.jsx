@@ -16,7 +16,6 @@ import { ForgotPassword } from "./pages/resident/ForgotPassword";
 import { ResetPassword } from "./pages/resident/ResetPassword";
 import { Report } from "./pages/resident/Report";
 import { MapView } from "./pages/resident/MapView";
-import { Notifications } from "./pages/resident/Notifications";
 import { News } from "./pages/resident/News";
 import { Suggestions } from "./pages/resident/Suggestions";
 import { Profile } from "./pages/resident/Profile";
@@ -33,6 +32,7 @@ import { NewsManager } from "./pages/manager/NewsManager";
 import { UsersDirectory } from "./pages/manager/UsersDirectory";
 import { ErrorLog } from "./pages/manager/ErrorLog";
 import { PaymentSettings } from "./pages/manager/PaymentSettings";
+import { Notifications } from "./pages/resident/Notifications";
 import { CareProfessionals } from "./pages/manager/CareProfessionals";
 import { Help } from "./pages/resident/Help";
 import { PsyPortal } from "./pages/psy/PsyPortal";
@@ -205,6 +205,14 @@ export default function App() {
           element={
             <ProtectedRoute role="manager">
               <CareProfessionals />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manager/notifications"
+          element={
+            <ProtectedRoute role="manager">
+              <Notifications />
             </ProtectedRoute>
           }
         />

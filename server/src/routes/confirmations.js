@@ -62,11 +62,12 @@ confirmationsRouter.post("/", validate(confirmationCreateSchema), (req, res) => 
       message: `Votre signalement « ${incident.title} » a été confirmé par la communauté.`,
       type: "alerte",
       target_building_id: incident.building_id,
+      link: `/?incident=${incident.id}`,
     });
     if (incident.building_id) {
       notifyBuilding(
         incident.building_id,
-        { title: "Incident confirmé", message: `« ${incident.title} » a été confirmé par la communauté.`, type: "alerte" },
+        { title: "Incident confirmé", message: `« ${incident.title} » a été confirmé par la communauté.`, type: "alerte", link: `/?incident=${incident.id}` },
         { excludeUserId: incident.reporter_id }
       );
     }

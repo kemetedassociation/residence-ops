@@ -138,7 +138,7 @@ careRouter.post("/appointments", ...resident, validate(bookSchema), (req, res) =
   const result = book(req.userId, req.body);
   if (result.error) return res.status(result.status).json({ error: result.error });
   // Notification volontairement sans détail : rien de sensible dans les notifications système.
-  notifyUsers([req.userId], { title: "Rendez-vous confirmé", message: "Votre rendez-vous est enregistré. Retrouvez-le dans « Besoin d'aide ».", type: "info" });
+  notifyUsers([req.userId], { title: "Rendez-vous confirmé", message: "Votre rendez-vous est enregistré. Retrouvez-le dans « Besoin d'aide ».", type: "info", link: "/aide" });
   res.status(201).json({ appointment: appointmentView(result.id) });
 });
 
@@ -301,7 +301,7 @@ careRouter.patch("/pro/appointments/:id/cancel", requireCarePro, (req, res) => {
     db.prepare("UPDATE care_appointments SET status = 'annule' WHERE id = ?").run(a.id);
     db.prepare("UPDATE care_slots SET is_booked = 0 WHERE id = ?").run(a.slot_id);
   })();
-  notifyUsers([a.resident_id], { title: "Rendez-vous annulé", message: "Votre rendez-vous a été annulé par le professionnel. Vous pouvez en choisir un autre.", type: "alerte" });
+  notifyUsers([a.resident_id], { title: "Rendez-vous annulé", message: "Votre rendez-vous a été annulé par le professionnel. Vous pouvez en choisir un autre.", type: "alerte", link: "/aide" });
   res.json({ ok: true });
 });
 
@@ -406,6 +406,6 @@ careRouter.delete("/manage/professionals/:id", ...manager, (req, res) => {
   if (!p) return res.status(404).json({ error: "Professionnel introuvable." });
   const affected = db.prepare("SELECT DISTINCT resident_id FROM care_appointments WHERE professional_id = ? AND status = 'confirme'").all(p.id).map((r) => r.resident_id);
   db.prepare("DELETE FROM care_professionals WHERE id = ?").run(p.id);
-  if (affected.length) notifyUsers(affected, { title: "Rendez-vous annulé", message: "Un de vos rendez-vous a été annulé. Vous pouvez en choisir un autre dans « Besoin d'aide ».", type: "alerte" });
+  if (affected.length) notifyUsers(affected, { title: "Rendez-vous annulé", message: "Un de vos rendez-vous a été annulé. Vous pouvez en choisir un autre dans « Besoin d'aide ».", type: "alerte", link: "/aide" });
   res.status(204).end();
 });

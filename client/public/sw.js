@@ -1,4 +1,4 @@
-const CACHE_NAME = "residence-ops-shell-v2";
+const CACHE_NAME = "residence-ops-shell-v3";
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -23,17 +23,33 @@ self.addEventListener("push", (event) => {
       body: data.body,
       icon: "/pwa-icon.svg",
       badge: "/pwa-icon.svg",
+      data: { url: data.url || "/notifications" },
     })
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  // Un appui sur la notification ouvre directement la page concernée. Seules les adresses de l'app
+  // elle-même sont suivies : tout autre lien retombe sur le centre de notifications.
+  let target = new URL("/notifications", self.location.origin);
+  try {
+    const candidate = new URL(event.notification.data?.url || "/notifications", self.location.origin);
+    if (candidate.origin === self.location.origin) target = candidate;
+  } catch {
+    // lien invalide : centre de notifications
+  }
   event.waitUntil(
-    self.clients.matchAll({ type: "window" }).then((clients) => {
-      if (clients.length > 0) return clients[0].focus();
-      return self.clients.openWindow("/notifications");
-    })
+    (async () => {
+      const wins = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const open = wins.find((w) => new URL(w.url).origin === self.location.origin);
+      if (open) {
+        await open.focus();
+        if ("navigate" in open) await open.navigate(target.href).catch(() => {});
+        return;
+      }
+      await self.clients.openWindow(target.href);
+    })()
   );
 });
 

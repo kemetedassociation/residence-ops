@@ -57,6 +57,7 @@ postsRouter.post("/", requireRole("manager"), validate(postCreateSchema), (req, 
       title: "Nouvelle actualité",
       message: title,
       type: "info",
+      link: "/actualites",
     });
   }
 

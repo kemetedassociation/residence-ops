@@ -1458,3 +1458,38 @@ describe("Plages de disponibilité (rendez-vous administratifs)", () => {
     expect((await request(app).post("/api/availability-slots/bulk").set(auth(managerToken)).send({ slots: [{ start_at: "demain", end_at: "après" }] })).status).toBe(400);
   });
 });
+
+describe("Liens de notification", () => {
+  const auth = (t) => ({ Authorization: `Bearer ${t}` });
+
+  it("n'accepte que des chemins internes (jamais d'URL externe)", async () => {
+    const { sanitizeLink } = await import("../routes/notifications.js");
+    expect(sanitizeLink("/administration?tab=rdv")).toBe("/administration?tab=rdv");
+    expect(sanitizeLink("/?incident=abc123")).toBe("/?incident=abc123");
+    for (const bad of ["//evil.com", "https://evil.com", "javascript:alert(1)", "/a b", "", null, undefined, 42]) {
+      expect(sanitizeLink(bad), String(bad)).toBeNull();
+    }
+  });
+
+  it("chaque notification renvoie vers la bonne page pour son destinataire", async () => {
+    const reg = await request(app).post("/api/auth/register").send({
+      name: "Lien", email: `lien-${nanoid(5)}@test.fr`, password: "password123", accepted_privacy: true,
+      residence_id: residenceId, building_id: buildingId, lease_number: "BAIL-LIEN",
+    });
+    db.prepare("UPDATE users SET lease_status = 'verified' WHERE id = ?").run(reg.body.user.id);
+    const t = reg.body.token;
+
+    const doc = await request(app).post("/api/documents").set(auth(t)).send({ type: "attestation_residence" });
+    const mgrNotifs = await request(app).get("/api/notifications").set(auth(managerToken));
+    expect(mgrNotifs.body.notifications.find((n) => n.title === "Nouvelle demande de document").link).toBe("/manager/documents");
+
+    await request(app).patch(`/api/documents/${doc.body.document.id}`).set(auth(managerToken)).send({ status: "refuse", admin_note: "Pièce manquante" });
+    const resNotifs = await request(app).get("/api/notifications").set(auth(t));
+    expect(resNotifs.body.notifications.find((n) => n.title.includes("refusée")).link).toBe("/administration?tab=documents");
+
+    const inc = await request(app).post("/api/incidents").set(auth(t)).send({ type: "eau", description: "Fuite au plafond du couloir", building_id: buildingId });
+    await request(app).patch(`/api/incidents/${inc.body.incident.id}`).set(auth(managerToken)).send({ status: "resolu" });
+    const after = await request(app).get("/api/notifications").set(auth(t));
+    expect(after.body.notifications.find((n) => n.title === "Incident résolu").link).toBe(`/?incident=${inc.body.incident.id}`);
+  });
+});

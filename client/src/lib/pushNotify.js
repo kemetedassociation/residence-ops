@@ -5,11 +5,17 @@ export function requestNotificationPermission() {
   }
 }
 
-export function showBrowserNotification(title, body) {
+export function showBrowserNotification(title, body, url) {
   if (!("Notification" in window) || Notification.permission !== "granted") return;
   if (document.visibilityState === "visible") return;
   try {
-    new Notification(title, { body, icon: "/pwa-icon.svg" });
+    const n = new Notification(title, { body, icon: "/pwa-icon.svg" });
+    if (url && url.startsWith("/") && !url.startsWith("//")) {
+      n.onclick = () => {
+        window.focus();
+        window.location.assign(url);
+      };
+    }
   } catch {
     // ignore unsupported environments
   }

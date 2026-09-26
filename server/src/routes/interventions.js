@@ -56,6 +56,7 @@ interventionsRouter.post("/", requireRole("manager"), validate(interventionCreat
     message: `Un technicien va intervenir pour « ${incident.title} ».`,
     type: "intervention",
     target_building_id: incident.building_id,
+    link: `/?incident=${incident.id}`,
   });
 
   emitToResidence(residenceId, "intervention:created", intervention);
@@ -81,11 +82,12 @@ interventionsRouter.patch("/:id", validate(interventionPatchSchema), (req, res) 
       message: `Votre signalement « ${incident.title} » a été résolu.`,
       type: "resolution",
       target_building_id: incident.building_id,
+      link: `/?incident=${incident.id}`,
     });
     if (incident.building_id) {
       notifyBuilding(
         incident.building_id,
-        { title: "Incident résolu", message: `« ${incident.title} » a été résolu.`, type: "resolution" },
+        { title: "Incident résolu", message: `« ${incident.title} » a été résolu.`, type: "resolution", link: `/?incident=${incident.id}` },
         { excludeUserId: incident.reporter_id }
       );
     }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { NavLink } from "react-router-dom";
+import { NavLink, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   CheckCircle2,
@@ -38,6 +38,7 @@ const quickActions = [
 export function Feed() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [statusFilter, setStatusFilter] = useState("all");
   const [buildingFilter, setBuildingFilter] = useState("all");
   const [selected, setSelected] = useState(null);
@@ -63,6 +64,15 @@ export function Feed() {
     queryFn: () => api.get("/posts").then((d) => d.posts),
   });
   const featuredPost = useMemo(() => posts.find((p) => p.pinned) || posts[0] || null, [posts]);
+
+  // Arrivée depuis une notification (?incident=...) : ouvre directement la fiche du signalement.
+  useEffect(() => {
+    const id = searchParams.get("incident");
+    if (!id || incidentsLoading) return;
+    const found = incidents.find((i) => i.id === id);
+    if (found) setSelected(found);
+    setSearchParams({}, { replace: true });
+  }, [searchParams, incidents, incidentsLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useRealtime(["incident:created", "incident:updated", "incident:deleted"], () => {
     queryClient.invalidateQueries({ queryKey: ["incidents"] });

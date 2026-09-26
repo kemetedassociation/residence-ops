@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -23,6 +24,8 @@ export function Administration() {
   const hasLease = user?.lease_status === "verified";
   const queryClient = useQueryClient();
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") === "rdv" ? "rdv" : "documents";
   const [docType, setDocType] = useState("");
   const [docNote, setDocNote] = useState("");
   const [attachment, setAttachment] = useState(null);
@@ -113,7 +116,7 @@ export function Administration() {
             </Card>
           </>
         ) : (
-          <Tabs defaultValue="documents">
+          <Tabs value={tab} onValueChange={(v) => setSearchParams({ tab: v }, { replace: true })}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="documents">Documents</TabsTrigger>
               <TabsTrigger value="rdv">Rendez-vous</TabsTrigger>

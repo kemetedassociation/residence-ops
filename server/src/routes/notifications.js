@@ -8,19 +8,26 @@ import { sendPushToUser } from "../lib/push.js";
 export const notificationsRouter = Router();
 notificationsRouter.use(requireAuth);
 
-export function notifyUsers(userIds, { title, message, type, target_building_id = null }) {
+// Un lien de notification est toujours un chemin interne de l'app (jamais une URL externe) : on évite
+// ainsi qu'une notification serve de tremplin vers un site tiers.
+export function sanitizeLink(link) {
+  return typeof link === "string" && /^\/(?!\/)[\w\-/?=&%.]{0,200}$/.test(link) ? link : null;
+}
+
+export function notifyUsers(userIds, { title, message, type, target_building_id = null, link = null }) {
   const now = new Date().toISOString();
+  const safeLink = sanitizeLink(link);
   const insert = db.prepare(
-    `INSERT INTO notifications (id, user_id, title, message, type, target_building_id, is_read, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, 0, ?)`
+    `INSERT INTO notifications (id, user_id, title, message, type, target_building_id, link, is_read, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`
   );
 
   const created = userIds.filter(Boolean).map((userId) => {
     const id = nanoid();
-    insert.run(id, userId, title, message, type, target_building_id, now);
-    const notif = { id, user_id: userId, title, message, type, target_building_id, is_read: false, created_at: now };
+    insert.run(id, userId, title, message, type, target_building_id, safeLink, now);
+    const notif = { id, user_id: userId, title, message, type, target_building_id, link: safeLink, is_read: false, created_at: now };
     emitToUser(`user:${userId}`, "notification:created", notif);
-    sendPushToUser(userId, { title, body: message });
+    sendPushToUser(userId, { title, body: message, url: safeLink || "/notifications" });
     return notif;
   });
 

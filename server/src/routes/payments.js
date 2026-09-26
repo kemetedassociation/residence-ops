@@ -35,6 +35,7 @@ function notifyIfCredited({ payment, outcome }) {
     title: "Recharge effectuée",
     message: `${(payment.amount_cents / 100).toFixed(2)} € ont été ajoutés à votre carte.`,
     type: "info",
+    link: "/ma-carte",
   });
 }
 

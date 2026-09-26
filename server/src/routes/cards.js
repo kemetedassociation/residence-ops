@@ -41,6 +41,7 @@ cardsRouter.post("/:userId/credit", requireRole("manager"), validate(walletCredi
       title: "Crédit ajouté à votre carte",
       message: `${(req.body.amount_cents / 100).toFixed(2)} € ont été ajoutés à votre solde (${req.body.reason}).`,
       type: "info",
+      link: "/ma-carte",
     });
 
     res.json(withHistory(updated));

@@ -36,6 +36,7 @@ activitiesRouter.post("/", requireRole("manager"), validate(activityCreateSchema
     title: "Nouvelle activité",
     message: `« ${activity.title} » a été ajouté au planning des loisirs.`,
     type: "info",
+    link: "/loisirs",
   });
 
   res.status(201).json({ activity });

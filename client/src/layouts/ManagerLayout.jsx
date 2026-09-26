@@ -17,12 +17,16 @@ import {
   Download,
   CreditCard,
   HeartHandshake,
+  Bell,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
+import { api } from "../lib/api";
 import { useBranding } from "../context/BrandingContext";
 
 const navItems = [
   { to: "/manager", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/manager/notifications", label: "Notifications", icon: Bell, badge: true },
   { to: "/manager/incidents", label: "Incidents", icon: ListChecks },
   { to: "/manager/planning", label: "Planning", icon: CalendarClock },
   { to: "/manager/analytics", label: "Analytics", icon: BarChart3 },
@@ -42,6 +46,11 @@ export function ManagerLayout() {
   const { user, logout } = useAuth();
   const { displayName, logoUrl } = useBranding();
   const navigate = useNavigate();
+  const { data: notifications = [] } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => api.get("/notifications").then((d) => d.notifications),
+  });
+  const unread = notifications.filter((n) => !n.is_read).length;
 
   function handleLogout() {
     logout();
@@ -58,7 +67,7 @@ export function ManagerLayout() {
           <span className="truncate font-semibold">{displayName}</span>
         </div>
         <nav className="flex-1 space-y-1 px-3">
-          {navItems.map(({ to, label, icon: Icon, end }) => (
+          {navItems.map(({ to, label, icon: Icon, end, badge }) => (
             <NavLink
               key={to}
               to={to}
@@ -73,6 +82,9 @@ export function ManagerLayout() {
             >
               <Icon className="h-4 w-4" />
               {label}
+              {badge && unread > 0 && (
+                <span className="ml-auto rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-bold leading-none text-destructive-foreground">{unread}</span>
+              )}
             </NavLink>
           ))}
         </nav>

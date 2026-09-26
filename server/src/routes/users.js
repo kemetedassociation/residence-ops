@@ -50,7 +50,7 @@ usersRouter.patch("/:id/lease", requireRole("manager"), validate(leaseReviewSche
     rejected: "Votre numéro de bail n'a pas pu être vérifié. Merci de le corriger dans votre profil.",
     none: "Le statut de votre bail a été réinitialisé.",
   };
-  notifyUsers([user.id], { title: "Statut du bail mis à jour", message: messages[req.body.lease_status], type: "info" });
+  notifyUsers([user.id], { title: "Statut du bail mis à jour", message: messages[req.body.lease_status], type: "info", link: "/profil" });
 
   res.json({ user: withoutPassword(db.prepare("SELECT * FROM users WHERE id = ?").get(req.params.id)) });
 });

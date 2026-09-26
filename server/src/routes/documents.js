@@ -54,6 +54,7 @@ documentsRouter.post("/", requireRole("resident"), requireLease, validate(docume
     title: "Nouvelle demande de document",
     message: `Une demande (${req.body.type}) a été déposée.`,
     type: "info",
+    link: "/manager/documents",
   });
 
   res.status(201).json({ document: doc });
@@ -76,12 +77,14 @@ documentsRouter.patch("/:id", requireRole("manager"), validate(documentPatchSche
       title: "Document disponible",
       message: "Votre document est prêt et disponible dans l'application.",
       type: "info",
+      link: "/administration?tab=documents",
     });
   } else if (req.body.status === "refuse") {
     notifyUsers([doc.user_id], {
       title: "Demande de document refusée",
       message: req.body.admin_note || "Votre demande de document a été refusée.",
       type: "alerte",
+      link: "/administration?tab=documents",
     });
   }
 

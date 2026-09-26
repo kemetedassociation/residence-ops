@@ -123,11 +123,13 @@ appointmentsRouter.post("/", requireRole("resident"), requireLease, validate(app
       title: "Nouveau rendez-vous",
       message: `Un résident a réservé un créneau le ${new Date(slot.start_at).toLocaleString("fr-FR")}.`,
       type: "info",
+      link: "/manager/rendez-vous",
     });
     notifyUsers([req.userId], {
       title: "Rendez-vous confirmé",
       message: `Votre rendez-vous du ${new Date(slot.start_at).toLocaleString("fr-FR")} est confirmé.`,
       type: "info",
+      link: "/administration?tab=rdv",
     });
 
     res.status(201).json({ appointment });
