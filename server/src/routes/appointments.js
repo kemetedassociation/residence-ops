@@ -3,7 +3,7 @@ import { nanoid } from "nanoid";
 import { db } from "../db/db.js";
 import { requireAuth, requireRole, requireLease } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
-import { slotCreateSchema, appointmentCreateSchema } from "../schemas.js";
+import { slotCreateSchema, slotsBulkSchema, appointmentCreateSchema } from "../schemas.js";
 import { notifyUsers } from "./notifications.js";
 import { residenceIdForUser } from "../lib/residence.js";
 
@@ -36,6 +36,32 @@ slotsRouter.post("/", requireRole("manager"), validate(slotCreateSchema), (req, 
      VALUES (@id, @staff_user_id, @residence_id, @start_at, @end_at, @is_booked, @created_at)`
   ).run(slot);
   res.status(201).json({ slot });
+});
+
+// Plage horaire découpée en créneaux (créée côté client) : les créneaux passés ou qui en chevauchent un
+// existant sont ignorés, pour ne jamais créer deux rendez-vous possibles sur la même heure.
+slotsRouter.post("/bulk", requireRole("manager"), validate(slotsBulkSchema), (req, res) => {
+  const residenceId = residenceIdForUser(req.userId);
+  const now = new Date().toISOString();
+  const insert = db.prepare(
+    `INSERT INTO availability_slots (id, staff_user_id, residence_id, start_at, end_at, is_booked, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)`
+  );
+  let created = 0;
+  let skipped = 0;
+  db.transaction(() => {
+    for (const s of req.body.slots) {
+      const start = new Date(s.start_at).toISOString();
+      const end = new Date(s.end_at).toISOString();
+      const overlap = db.prepare("SELECT 1 FROM availability_slots WHERE residence_id = ? AND start_at < ? AND end_at > ?").get(residenceId, end, start);
+      if (end <= start || start <= now || overlap) {
+        skipped++;
+        continue;
+      }
+      insert.run(nanoid(), req.userId, residenceId, start, end, now);
+      created++;
+    }
+  })();
+  res.status(201).json({ created, skipped });
 });
 
 slotsRouter.delete("/:id", requireRole("manager"), (req, res) => {

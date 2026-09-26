@@ -476,6 +476,21 @@ export function seed() {
     "INSERT INTO appointments (id, slot_id, resident_id, note, status, created_at) VALUES (?, ?, ?, ?, 'confirme', ?)"
   ).run(nanoid(), bookedSlot, resident3.id, "Question sur mon dépôt de garantie", daysAgo(2));
 
+  // Disponibilités de démonstration pour le calendrier : les 14 prochains jours ouvrés, 9h-12h et 14h-17h (créneaux de 30 min).
+  for (let d = 3; d <= 21; d++) {
+    const day = new Date(now.getTime() + d * 86400000);
+    if (day.getUTCDay() === 0 || day.getUTCDay() === 6) continue;
+    [[9, 12], [14, 17]].forEach(([from, to]) => {
+      for (let t = from * 60; t < to * 60; t += 30) {
+        const start = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), Math.floor(t / 60), t % 60));
+        insertSlot.run({
+          id: nanoid(), staff_user_id: manager.id, residence_id: residenceId, start_at: start.toISOString(),
+          end_at: new Date(start.getTime() + 30 * 60000).toISOString(), is_booked: 0, created_at: daysAgo(1),
+        });
+      }
+    });
+  }
+
   // Loisirs (Phase 5) : planning de démonstration.
   const insertActivity = db.prepare(
     `INSERT INTO activities (id, residence_id, title, description, category, activity_date, start_time, end_time, location, created_by, created_at)

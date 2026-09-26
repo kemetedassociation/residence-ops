@@ -11,6 +11,7 @@ import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "../../components/ui/dialog";
 import { Skeleton } from "../../components/ui/skeleton";
+import { MonthCalendar, DaySlotPicker } from "../../components/AvailabilityCalendar";
 import { useAuth } from "../../context/AuthContext";
 import { api, getToken } from "../../lib/api";
 import { URGENT_NUMBERS, LISTENING_NUMBERS, MODE_LABELS, calendarLinks } from "../../lib/care";
@@ -58,6 +59,7 @@ function CalendarButtons({ appointment }) {
 
 function BookingDialog({ professional, open, onOpenChange, onBooked }) {
   const [slotId, setSlotId] = useState(null);
+  const [pickedDay, setPickedDay] = useState(null);
   const [note, setNote] = useState("");
   const [share, setShare] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -91,6 +93,7 @@ function BookingDialog({ professional, open, onOpenChange, onBooked }) {
   function close(v) {
     if (!v) {
       setSlotId(null);
+      setPickedDay(null);
       setNote("");
       setShare(false);
       setDone(null);
@@ -124,25 +127,16 @@ function BookingDialog({ professional, open, onOpenChange, onBooked }) {
                 Aucun créneau disponible pour le moment. Vous pouvez contacter directement le professionnel avec les coordonnées de sa fiche.
               </p>
             )}
-            <div className="space-y-3">
-              {days.map((d) => (
-                <div key={d.label}>
-                  <p className="mb-1.5 text-xs font-semibold capitalize text-muted-foreground">{d.label}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {d.slots.map((s) => (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => setSlotId(s.id)}
-                        className={cn("rounded-lg border px-3 py-1.5 text-sm font-medium", slotId === s.id ? "border-primary bg-primary/10 text-primary" : "border-border")}
-                      >
-                        {fmt(s.start_at, "HH'h'mm")}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
+            {!isLoading && days.length > 0 && (
+              <div className="space-y-3">
+                <MonthCalendar slots={data.slots} selectedDay={pickedDay} onSelectDay={(d) => { setPickedDay(d); setSlotId(null); }} />
+                {pickedDay ? (
+                  <DaySlotPicker day={pickedDay} slots={data.slots} selectedId={slotId} onSelect={(s) => setSlotId(s.id)} />
+                ) : (
+                  <p className="text-xs text-muted-foreground">Choisissez un jour en couleur pour voir les horaires.</p>
+                )}
+              </div>
+            )}
             {slotId && (
               <div className="space-y-3">
                 <Textarea rows={3} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ce que vous souhaitez partager avant le rendez-vous (facultatif)" />

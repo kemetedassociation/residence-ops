@@ -189,3 +189,10 @@ export const activityCreateSchema = z.object({
 });
 
 export const activityPatchSchema = activityCreateSchema.partial();
+
+export const slotsBulkSchema = z.object({
+  slots: z
+    .array(z.object({ start_at: z.string().datetime(), end_at: z.string().datetime() }))
+    .min(1)
+    .max(100),
+});

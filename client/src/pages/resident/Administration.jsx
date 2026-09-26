@@ -11,6 +11,7 @@ import { Badge } from "../../components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../../components/ui/tabs";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "../../components/ui/select";
 import { RestrictedBanner } from "../../components/RestrictedBanner";
+import { MonthCalendar, DaySlotPicker } from "../../components/AvailabilityCalendar";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../lib/api";
 import { uploadPrivateFile, openPrivateFile, DOCUMENT_ACCEPT, DOCUMENT_FORMATS_LABEL } from "../../lib/files";
@@ -28,6 +29,8 @@ export function Administration() {
   const [sending, setSending] = useState(false);
   const attachmentInput = useRef(null);
   const [appointmentNote, setAppointmentNote] = useState("");
+  const [pickedDay, setPickedDay] = useState(null);
+  const [pickedSlot, setPickedSlot] = useState(null);
 
   const { data: documents = [] } = useQuery({
     queryKey: ["documents"],
@@ -68,6 +71,7 @@ export function Administration() {
       await api.post("/appointments", { slot_id: slotId, note: appointmentNote });
       toast.success("Rendez-vous confirmé.");
       setAppointmentNote("");
+      setPickedSlot(null);
       queryClient.invalidateQueries({ queryKey: ["slots"] });
       queryClient.invalidateQueries({ queryKey: ["appointments", "mine"] });
     } catch (err) {
@@ -215,29 +219,40 @@ export function Administration() {
                 </div>
               )}
 
-              <div>
-                <p className="mb-2 text-sm font-semibold text-muted-foreground">Créneaux disponibles</p>
-                <Textarea
-                  rows={2}
-                  placeholder="Motif du rendez-vous (optionnel)"
-                  value={appointmentNote}
-                  onChange={(e) => setAppointmentNote(e.target.value)}
-                  className="mb-2"
-                />
-                <div className="space-y-2">
-                  {slots.map((s) => (
-                    <div key={s.id} className="flex items-center justify-between rounded-lg border border-border bg-card p-3">
-                      <span className="flex items-center gap-2 text-sm">
-                        <CalendarClock className="h-4 w-4 text-muted-foreground" />
-                        {format(new Date(s.start_at), "EEEE d MMMM, HH:mm", { locale: fr })}
-                      </span>
-                      <Button size="sm" onClick={() => bookSlot(s.id)}>
-                        Réserver
-                      </Button>
-                    </div>
-                  ))}
-                  {slots.length === 0 && <p className="text-sm text-muted-foreground">Aucun créneau disponible.</p>}
-                </div>
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-muted-foreground">Choisir un jour puis un créneau</p>
+                {slots.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                    Aucune disponibilité pour le moment. Revenez bientôt ou contactez l'accueil.
+                  </p>
+                ) : (
+                  <>
+                    <MonthCalendar
+                      slots={slots}
+                      selectedDay={pickedDay}
+                      onSelectDay={(d) => {
+                        setPickedDay(d);
+                        setPickedSlot(null);
+                      }}
+                    />
+                    {pickedDay ? (
+                      <DaySlotPicker day={pickedDay} slots={slots} selectedId={pickedSlot?.id} onSelect={setPickedSlot} />
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Les jours en couleur ont des créneaux libres.</p>
+                    )}
+                    {pickedSlot && (
+                      <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3">
+                        <p className="text-sm font-medium">
+                          Rendez-vous le {format(new Date(pickedSlot.start_at), "EEEE d MMMM 'à' HH'h'mm", { locale: fr })}
+                        </p>
+                        <Textarea rows={2} placeholder="Motif du rendez-vous (optionnel)" value={appointmentNote} onChange={(e) => setAppointmentNote(e.target.value)} />
+                        <Button className="w-full" onClick={() => bookSlot(pickedSlot.id)}>
+                          Confirmer le rendez-vous
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </TabsContent>
           </Tabs>

@@ -1431,3 +1431,30 @@ describe("Accompagnement psychologique", () => {
     expect((await request(app).get("/api/care/professionals")).body.professionals.find((p) => p.id === proId)).toBeUndefined();
   });
 });
+
+describe("Plages de disponibilité (rendez-vous administratifs)", () => {
+  const auth = (t) => ({ Authorization: `Bearer ${t}` });
+  const future = (h) => new Date(Date.now() + h * 3600000).toISOString();
+
+  it("crée plusieurs créneaux d'un coup et ignore passé et chevauchements", async () => {
+    const slots = [
+      { start_at: future(100), end_at: future(100.5) },
+      { start_at: future(100.5), end_at: future(101) },
+      { start_at: future(100.25), end_at: future(100.75) }, // chevauche les deux premiers
+      { start_at: future(-3), end_at: future(-2) }, // passé
+    ];
+    const res = await request(app).post("/api/availability-slots/bulk").set(auth(managerToken)).send({ slots });
+    expect(res.status).toBe(201);
+    expect(res.body).toEqual({ created: 2, skipped: 2 });
+  });
+
+  it("réserve la création de plages au gestionnaire et refuse un lot invalide", async () => {
+    const reg = await request(app).post("/api/auth/register").send({
+      name: "SansDroit", email: `sd-${nanoid(5)}@test.fr`, password: "password123", accepted_privacy: true, residence_id: residenceId,
+    });
+    const body = { slots: [{ start_at: future(200), end_at: future(201) }] };
+    expect((await request(app).post("/api/availability-slots/bulk").set(auth(reg.body.token)).send(body)).status).toBe(403);
+    expect((await request(app).post("/api/availability-slots/bulk").set(auth(managerToken)).send({ slots: [] })).status).toBe(400);
+    expect((await request(app).post("/api/availability-slots/bulk").set(auth(managerToken)).send({ slots: [{ start_at: "demain", end_at: "après" }] })).status).toBe(400);
+  });
+});
