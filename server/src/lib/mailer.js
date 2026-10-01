@@ -34,7 +34,7 @@ async function getTransporter() {
   return transporterPromise;
 }
 
-export async function sendMail({ to, subject, html, text }) {
+export async function sendMail({ to, subject, html, text, attachments }) {
   const { transporter, isTest } = await getTransporter();
   const info = await transporter.sendMail({
     from: process.env.SMTP_FROM || '"Résidence Ops" <no-reply@residence-ops.fr>',
@@ -42,6 +42,7 @@ export async function sendMail({ to, subject, html, text }) {
     subject,
     text,
     html,
+    attachments,
   });
 
   if (isTest) {

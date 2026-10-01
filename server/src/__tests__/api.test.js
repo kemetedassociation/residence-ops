@@ -5,6 +5,13 @@ import bcrypt from "bcryptjs";
 import { nanoid } from "nanoid";
 import { app } from "../app.js";
 import { db } from "../db/db.js";
+import { sendMail } from "../lib/mailer.js";
+import { sendWasteReportEmail } from "../lib/wasteReport.js";
+
+vi.mock("../lib/mailer.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, sendMail: vi.fn().mockResolvedValue({}) };
+});
 
 let residenceId, buildingId, managerToken, managerId;
 
@@ -553,6 +560,186 @@ describe("restaurant — menus and reservations", () => {
 
     card = await request(app).get("/api/cards/me").set("Authorization", `Bearer ${residentToken}`);
     expect(card.body.card.balance_cents).toBe(1000);
+  });
+});
+
+describe("restaurant — anti-gaspillage (quotas et bilan sauvé/perdu)", () => {
+  let residentToken, resident2Token, resident3Token, cappedMenuId, legacyMenuId;
+
+  beforeAll(async () => {
+    async function registerVerifiedResident(label) {
+      const reg = await request(app).post("/api/auth/register").send({
+        name: label,
+        email: `${label.toLowerCase().replace(/\s/g, "")}-${nanoid(5)}@test.fr`,
+        password: "password123",
+        accepted_privacy: true,
+        residence_id: residenceId,
+        building_id: buildingId,
+      });
+      db.prepare("UPDATE users SET lease_status = 'verified' WHERE id = ?").run(reg.body.user.id);
+      return reg.body.token;
+    }
+    residentToken = await registerVerifiedResident("Waste One");
+    resident2Token = await registerVerifiedResident("Waste Two");
+    resident3Token = await registerVerifiedResident("Waste Three");
+
+    const menu = await request(app)
+      .post("/api/menus")
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({
+        menu_date: "2026-10-05",
+        meal: "midi",
+        items: [{ name: "Couscous", max_portions: 2 }, "Salade"],
+      });
+    cappedMenuId = menu.body.menu.id;
+
+    // Simule une ligne historique créée avant cette fonctionnalité (format chaîne simple).
+    legacyMenuId = nanoid();
+    db.prepare(
+      "INSERT INTO menus (id, residence_id, menu_date, meal, items, created_by, created_at) VALUES (?, ?, '2026-10-06', 'soir', ?, ?, ?)"
+    ).run(legacyMenuId, residenceId, JSON.stringify(["Plat simple"]), managerId, new Date().toISOString());
+  });
+
+  it("creates a menu with a mixed legacy-string/object items format and normalizes it", async () => {
+    const res = await request(app).get("/api/menus").set("Authorization", `Bearer ${residentToken}`);
+    const menu = res.body.menus.find((m) => m.id === cappedMenuId);
+    const couscous = menu.items.find((it) => it.name === "Couscous");
+    const salade = menu.items.find((it) => it.name === "Salade");
+    expect(couscous).toEqual({ name: "Couscous", max_portions: 2, reserved: 0, remaining: 2 });
+    expect(salade).toEqual({ name: "Salade", max_portions: null, reserved: 0, remaining: null });
+  });
+
+  it("normalizes a legacy plain-string menu with unlimited capacity", async () => {
+    const res = await request(app).get("/api/menus").set("Authorization", `Bearer ${residentToken}`);
+    const menu = res.body.menus.find((m) => m.id === legacyMenuId);
+    expect(menu.items[0]).toEqual({ name: "Plat simple", reserved: 0, remaining: null, max_portions: null });
+
+    const reservation = await request(app)
+      .post("/api/reservations")
+      .set("Authorization", `Bearer ${residentToken}`)
+      .send({ menu_id: legacyMenuId, dish: "Plat simple" });
+    expect(reservation.status).toBe(201);
+  });
+
+  it("hard-blocks a reservation once the prepared-portions quota is reached", async () => {
+    const first = await request(app)
+      .post("/api/reservations")
+      .set("Authorization", `Bearer ${residentToken}`)
+      .send({ menu_id: cappedMenuId, dish: "Couscous" });
+    expect(first.status).toBe(201);
+
+    const second = await request(app)
+      .post("/api/reservations")
+      .set("Authorization", `Bearer ${resident2Token}`)
+      .send({ menu_id: cappedMenuId, dish: "Couscous" });
+    expect(second.status).toBe(201);
+
+    const third = await request(app)
+      .post("/api/reservations")
+      .set("Authorization", `Bearer ${resident3Token}`)
+      .send({ menu_id: cappedMenuId, dish: "Couscous" });
+    expect(third.status).toBe(409);
+
+    const menus = await request(app).get("/api/menus").set("Authorization", `Bearer ${resident3Token}`);
+    const couscous = menus.body.menus.find((m) => m.id === cappedMenuId).items.find((it) => it.name === "Couscous");
+    expect(couscous.reserved).toBe(2);
+    expect(couscous.remaining).toBe(0);
+  });
+
+  it("rejects a resident creating a waste log", async () => {
+    const res = await request(app)
+      .post("/api/waste-logs")
+      .set("Authorization", `Bearer ${residentToken}`)
+      .send({ menu_id: cappedMenuId, dish: "Couscous", saved: 0 });
+    expect(res.status).toBe(403);
+  });
+
+  it("rejects logging a dish with no prepared-portions quota defined", async () => {
+    const res = await request(app)
+      .post("/api/waste-logs")
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({ menu_id: cappedMenuId, dish: "Salade", saved: 0 });
+    expect(res.status).toBe(400);
+  });
+
+  it("rejects a saved count greater than the remaining portions", async () => {
+    const res = await request(app)
+      .post("/api/waste-logs")
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({ menu_id: cappedMenuId, dish: "Couscous", saved: 5 });
+    expect(res.status).toBe(400);
+  });
+
+  it("logs a waste entry with saved entered manually and lost computed automatically, and upserts on correction", async () => {
+    // Couscous : prepared=2, reserved=2 (étape précédente) => remaining=0, donc saved doit être 0.
+    const res = await request(app)
+      .post("/api/waste-logs")
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({ menu_id: cappedMenuId, dish: "Couscous", saved: 0 });
+    expect(res.status).toBe(201);
+    expect(res.body.waste_log).toMatchObject({ prepared: 2, reserved: 2, remaining: 0, saved: 0, lost: 0 });
+
+    // Un deuxième plat à quota, réservé une seule fois : remaining=4, saved=3 -> lost=1 calculé seul.
+    const menu2 = await request(app)
+      .post("/api/menus")
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({ menu_date: "2026-10-07", meal: "midi", items: [{ name: "Tajine", max_portions: 5 }] });
+    await request(app)
+      .post("/api/reservations")
+      .set("Authorization", `Bearer ${residentToken}`)
+      .send({ menu_id: menu2.body.menu.id, dish: "Tajine" });
+
+    const logged = await request(app)
+      .post("/api/waste-logs")
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({ menu_id: menu2.body.menu.id, dish: "Tajine", saved: 3 });
+    expect(logged.status).toBe(201);
+    expect(logged.body.waste_log).toMatchObject({ prepared: 5, reserved: 1, remaining: 4, saved: 3, lost: 1 });
+
+    // Correction : re-soumettre la même paire menu/plat met à jour la ligne au lieu de la dupliquer.
+    const corrected = await request(app)
+      .post("/api/waste-logs")
+      .set("Authorization", `Bearer ${managerToken}`)
+      .send({ menu_id: menu2.body.menu.id, dish: "Tajine", saved: 4 });
+    expect(corrected.body.waste_log).toMatchObject({ saved: 4, lost: 0 });
+
+    const list = await request(app)
+      .get(`/api/waste-logs?menu_id=${menu2.body.menu.id}`)
+      .set("Authorization", `Bearer ${managerToken}`);
+    expect(list.body.waste_logs.filter((l) => l.dish === "Tajine")).toHaveLength(1);
+  });
+
+  it("aggregates saved/lost totals and the save rate for the dashboard", async () => {
+    const res = await request(app).get("/api/waste-logs/stats").set("Authorization", `Bearer ${managerToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.total_saved).toBeGreaterThanOrEqual(4);
+    expect(res.body.total_lost).toBeGreaterThanOrEqual(0);
+    expect(res.body.rate).toBeGreaterThan(0);
+  });
+});
+
+describe("rapport anti-gaspillage par e-mail", () => {
+  it("sends a weekly report email with an xlsx attachment to the residence's manager", async () => {
+    sendMail.mockClear();
+    await sendWasteReportEmail(residenceId);
+
+    expect(sendMail).toHaveBeenCalledTimes(1);
+    const call = sendMail.mock.calls[0][0];
+    expect(call.to).toContain("manager@test.fr");
+    expect(call.attachments).toHaveLength(1);
+    expect(call.attachments[0].filename).toMatch(/^anti-gaspillage-.*\.xlsx$/);
+    expect(call.attachments[0].content.length).toBeGreaterThan(0);
+  });
+
+  it("sends nothing when there are no recipients for a residence", async () => {
+    sendMail.mockClear();
+    const emptyResidenceId = nanoid();
+    db.prepare(
+      "INSERT INTO residences (id, name, address, city, latitude, longitude, total_buildings, manager_email, created_at) VALUES (?, 'Résidence Vide', 'Adresse', 'Ville', 48.85, 2.35, 1, NULL, ?)"
+    ).run(emptyResidenceId, new Date().toISOString());
+
+    await sendWasteReportEmail(emptyResidenceId);
+    expect(sendMail).not.toHaveBeenCalled();
   });
 });
 

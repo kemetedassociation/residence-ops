@@ -13,6 +13,7 @@ import { RestrictedBanner } from "../../components/RestrictedBanner";
 import { useAuth } from "../../context/AuthContext";
 import { api } from "../../lib/api";
 import { cn } from "../../lib/utils";
+import { useRealtime } from "../../lib/socket";
 
 const MEAL_LABELS = { midi: "Midi", soir: "Soir" };
 const MEAL_PRICE = 3.5;
@@ -33,6 +34,8 @@ export function Restaurant() {
     queryFn: () => api.get("/cards/me"),
     enabled: hasLease,
   });
+
+  useRealtime(["menu:stock-updated"], () => queryClient.invalidateQueries({ queryKey: ["menus"] }));
 
   const reservationFor = (menuId) => reservations.find((r) => r.menu_id === menuId && r.status === "reservee");
 
@@ -113,35 +116,45 @@ export function Restaurant() {
                         )}
                       </div>
                       <div className="space-y-2">
-                        {menu.items.map((dish) => (
-                          <div
-                            key={dish}
-                            className={cn(
-                              "flex items-center justify-between rounded-lg border p-2.5",
-                              reservation?.dish === dish ? "border-primary bg-primary/5" : "border-border"
-                            )}
-                          >
-                            <span className="text-sm">{dish}</span>
-                            {!hasLease ? (
-                              <Lock className="h-4 w-4 text-muted-foreground" />
-                            ) : reservation?.dish === dish ? (
-                              <Button size="sm" variant="ghost" onClick={() => cancel(reservation.id)}>
-                                <X className="h-3.5 w-3.5" />
-                                Annuler
-                              </Button>
-                            ) : !reservation ? (
-                              <div className="flex gap-1">
-                                <Button size="sm" variant="outline" onClick={() => reserve(menu.id, dish, false)}>
-                                  Réserver
-                                </Button>
-                                <Button size="sm" onClick={() => reserve(menu.id, dish, true)}>
-                                  <CreditCard className="h-3.5 w-3.5" />
-                                  {MEAL_PRICE.toFixed(2)}€
-                                </Button>
+                        {menu.items.map((item) => {
+                          const isFull = item.max_portions != null && item.remaining <= 0;
+                          return (
+                            <div
+                              key={item.name}
+                              className={cn(
+                                "flex items-center justify-between rounded-lg border p-2.5",
+                                reservation?.dish === item.name ? "border-primary bg-primary/5" : "border-border"
+                              )}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm">{item.name}</span>
+                                {item.max_portions != null && (
+                                  <Badge variant={isFull ? "urgent" : "outline"} className="text-xs">
+                                    {isFull ? "Complet" : `${item.remaining} restant(s)`}
+                                  </Badge>
+                                )}
                               </div>
-                            ) : null}
-                          </div>
-                        ))}
+                              {!hasLease ? (
+                                <Lock className="h-4 w-4 text-muted-foreground" />
+                              ) : reservation?.dish === item.name ? (
+                                <Button size="sm" variant="ghost" onClick={() => cancel(reservation.id)}>
+                                  <X className="h-3.5 w-3.5" />
+                                  Annuler
+                                </Button>
+                              ) : !reservation ? (
+                                <div className="flex gap-1">
+                                  <Button size="sm" variant="outline" disabled={isFull} onClick={() => reserve(menu.id, item.name, false)}>
+                                    {isFull ? "Complet" : "Réserver"}
+                                  </Button>
+                                  <Button size="sm" disabled={isFull} onClick={() => reserve(menu.id, item.name, true)}>
+                                    <CreditCard className="h-3.5 w-3.5" />
+                                    {MEAL_PRICE.toFixed(2)}€
+                                  </Button>
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })}
                       </div>
                     </CardContent>
                   </Card>

@@ -133,10 +133,22 @@ export const walletCreditSchema = z.object({
   reason: z.string().trim().min(2).max(200),
 });
 
+// Un plat est soit une simple chaîne (legacy, capacité illimitée), soit un objet avec un quota de
+// portions préparées — voir server/src/lib/menuItems.js pour la normalisation des deux formats.
+const menuItemSchema = z.union([
+  z.string().trim().min(1).max(120),
+  z
+    .object({
+      name: z.string().trim().min(1).max(120),
+      max_portions: z.number().int().positive().max(9999).optional(),
+    })
+    .strict(),
+]);
+
 export const menuCreateSchema = z.object({
   menu_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "format de date attendu : AAAA-MM-JJ"),
   meal: z.enum(["midi", "soir"]),
-  items: z.array(z.string().trim().min(1).max(120)).min(1).max(10),
+  items: z.array(menuItemSchema).min(1).max(10),
 });
 
 export const menuPatchSchema = menuCreateSchema.partial();
@@ -145,6 +157,12 @@ export const reservationCreateSchema = z.object({
   menu_id: z.string().min(1).max(60),
   dish: z.string().trim().min(1).max(120),
   pay_with_card: z.boolean().optional().default(false),
+});
+
+export const wasteLogCreateSchema = z.object({
+  menu_id: z.string().min(1).max(60),
+  dish: z.string().trim().min(1).max(120),
+  saved: z.number().int().min(0).max(9999),
 });
 
 export const DOCUMENT_TYPES = ["attestation_residence", "avis_echeance", "autre"];

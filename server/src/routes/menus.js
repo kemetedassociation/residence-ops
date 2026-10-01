@@ -5,20 +5,19 @@ import { requireAuth, requireRole, requireStaffPermission } from "../middleware/
 import { validate } from "../middleware/validate.js";
 import { menuCreateSchema, menuPatchSchema } from "../schemas.js";
 import { residenceIdForUser } from "../lib/residence.js";
+import { enrichMenu, reservedCountsForMenus } from "../lib/menuItems.js";
 
 export const menusRouter = Router();
 menusRouter.use(requireAuth);
-
-function withItems(menu) {
-  return menu && { ...menu, items: JSON.parse(menu.items) };
-}
 
 menusRouter.get("/", (req, res) => {
   const residenceId = residenceIdForUser(req.userId);
   const menus = db
     .prepare("SELECT * FROM menus WHERE residence_id = ? ORDER BY menu_date ASC, meal ASC")
     .all(residenceId);
-  res.json({ menus: menus.map(withItems) });
+  if (menus.length === 0) return res.json({ menus: [] }); // évite un IN (...) vide, SQL invalide
+  const reservedMap = reservedCountsForMenus(menus.map((m) => m.id));
+  res.json({ menus: menus.map((m) => enrichMenu(m, reservedMap)) });
 });
 
 menusRouter.post("/", requireStaffPermission("restaurant"), validate(menuCreateSchema), (req, res) => {
@@ -45,7 +44,7 @@ menusRouter.post("/", requireStaffPermission("restaurant"), validate(menuCreateS
     throw err;
   }
 
-  res.status(201).json({ menu: withItems(menu) });
+  res.status(201).json({ menu: enrichMenu(menu, new Map()) });
 });
 
 menusRouter.put("/:id", requireStaffPermission("restaurant"), validate(menuPatchSchema), (req, res) => {
@@ -59,7 +58,9 @@ menusRouter.put("/:id", requireStaffPermission("restaurant"), validate(menuPatch
   };
   db.prepare("UPDATE menus SET menu_date=@menu_date, meal=@meal, items=@items WHERE id=@id").run(updated);
 
-  res.json({ menu: withItems(db.prepare("SELECT * FROM menus WHERE id = ?").get(req.params.id)) });
+  const fresh = db.prepare("SELECT * FROM menus WHERE id = ?").get(req.params.id);
+  const reservedMap = reservedCountsForMenus([fresh.id]);
+  res.json({ menu: enrichMenu(fresh, reservedMap) });
 });
 
 menusRouter.delete("/:id", requireStaffPermission("restaurant"), (req, res) => {

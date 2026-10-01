@@ -5,6 +5,8 @@ import { requireAuth, requireRole, requireLease } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { reservationCreateSchema } from "../schemas.js";
 import { getOrCreateCard, applyWalletTransaction } from "../lib/wallet.js";
+import { findMenuItem } from "../lib/menuItems.js";
+import { emitToResidence } from "../realtime.js";
 
 export const reservationsRouter = Router();
 reservationsRouter.use(requireAuth);
@@ -38,12 +40,24 @@ reservationsRouter.post("/", requireRole("resident"), requireLease, validate(res
   const menu = db.prepare("SELECT * FROM menus WHERE id = ?").get(menu_id);
   if (!menu) return res.status(404).json({ error: "Menu introuvable." });
 
-  const items = JSON.parse(menu.items);
-  if (!items.includes(dish)) return res.status(400).json({ error: "Ce plat ne fait pas partie du menu." });
+  const menuItem = findMenuItem(menu.items, dish);
+  if (!menuItem) return res.status(400).json({ error: "Ce plat ne fait pas partie du menu." });
 
   const existing = db.prepare("SELECT * FROM meal_reservations WHERE menu_id = ? AND user_id = ?").get(menu_id, req.userId);
   if (existing && existing.status === "reservee") {
     return res.status(409).json({ error: "Vous avez déjà une réservation pour ce repas." });
+  }
+
+  // Blocage strict du quota : better-sqlite3 est synchrone et mono-thread, et aucun `await` ne
+  // s'intercale entre ce comptage et l'écriture plus bas — aucune autre requête ne peut se glisser
+  // entre les deux, donc pas de survente possible même sans db.transaction() explicite.
+  if (menuItem.max_portions != null) {
+    const { reserved } = db
+      .prepare("SELECT COUNT(*) as reserved FROM meal_reservations WHERE menu_id = ? AND dish = ? AND status = 'reservee'")
+      .get(menu_id, dish);
+    if (reserved >= menuItem.max_portions) {
+      return res.status(409).json({ error: "Ce plat n'est plus disponible : stock de portions épuisé." });
+    }
   }
 
   if (pay_with_card) {
@@ -76,6 +90,7 @@ reservationsRouter.post("/", requireRole("resident"), requireLease, validate(res
     ).run(reservation);
   }
 
+  emitToResidence(menu.residence_id, "menu:stock-updated", { menu_id });
   res.status(201).json({ reservation });
 });
 
@@ -90,5 +105,7 @@ reservationsRouter.patch("/:id/cancel", requireRole("resident"), (req, res) => {
   }
 
   db.prepare("UPDATE meal_reservations SET status = 'annulee' WHERE id = ?").run(req.params.id);
+  const menu = db.prepare("SELECT residence_id FROM menus WHERE id = ?").get(reservation.menu_id);
+  if (menu) emitToResidence(menu.residence_id, "menu:stock-updated", { menu_id: reservation.menu_id });
   res.json({ reservation: db.prepare("SELECT * FROM meal_reservations WHERE id = ?").get(req.params.id) });
 });

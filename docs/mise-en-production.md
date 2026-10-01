@@ -128,3 +128,23 @@ de configuration pour fonctionner de base :
   La clé Azure ne quitte jamais le serveur : le navigateur appelle `/api/assistant/speech`, qui renvoie l'audio déjà
   généré. Sans ces variables, l'appel échoue silencieusement (503) et Isis bascule sur la voix du navigateur — aucune
   erreur visible, aucune action requise si vous ne voulez pas configurer Azure.
+
+## Anti-gaspillage au restaurant (quotas de portions + bilan sauvé/perdu)
+
+- **Quota de portions** : en créant ou modifiant un menu, le gestionnaire peut indiquer un nombre de « portions
+  préparées » par plat (facultatif). Une fois ce quota atteint, la réservation du plat est **bloquée** pour tout le
+  monde (pas un simple avertissement) : c'est le principe même de l'anti-gaspillage, on ne sert que ce qui a été
+  prévu. Un plat sans quota reste réservable sans limite, comme avant cette fonctionnalité (rétrocompatible avec
+  tous les menus déjà publiés).
+- **Suivi en temps réel** : le nombre de portions restantes par plat est visible à la fois par les résidents (page
+  Restaurant) et par le gestionnaire (Gestion du restaurant), mis à jour instantanément dès qu'une réservation est
+  faite ou annulée par n'importe qui (WebSocket), sans avoir besoin de rafraîchir la page.
+- **Bilan anti-gaspillage** : pour un plat à quota, le gestionnaire peut à tout moment ouvrir « Bilan » et saisir
+  combien de portions restantes ont été **sauvées** (données, revendues à prix réduit...) — c'est la seule valeur
+  saisie à la main. Le nombre **perdu** (jeté) est calculé automatiquement (perdu = restant − sauvé). Un tableau de
+  bord (totaux sauvé/perdu + taux de sauvegarde) s'affiche en haut de la page dès qu'un premier bilan est enregistré.
+- **Rapport Excel hebdomadaire automatique** : chaque lundi vers 8h, un fichier `.xlsx` récapitulant les 7 derniers
+  jours (préparé/réservé/sauvé/perdu par plat) est envoyé par e-mail à l'adresse de contact de la résidence et à
+  tout gestionnaire/technicien ayant accès au module Restaurant. Utilise le même SMTP déjà documenté plus haut
+  (section e-mail) : **aucune nouvelle variable d'environnement requise**. Sans SMTP configuré, l'envoi retombe sur
+  le même comportement que les autres e-mails de l'app (compte de test Ethereal, sans impact visible pour vous).

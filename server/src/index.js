@@ -6,6 +6,7 @@ import { setIO, roomFor } from "./realtime.js";
 import { db } from "./db/db.js";
 import { JWT_SECRET } from "./middleware/auth.js";
 import { backupNow } from "./db/backup.js";
+import { sendWasteReportEmailsForAllResidences } from "./lib/wasteReport.js";
 
 // Seed automatique si la base est vide : nécessaire sur Render (plan gratuit, pas d'accès
 // Shell, et base de données réinitialisée à chaque déploiement) — sans danger, puisqu'il ne
@@ -36,6 +37,31 @@ if (!process.env.VITEST) {
     await safeBackup();
     process.exit(0);
   });
+}
+
+// Rapport hebdomadaire anti-gaspillage : vérifié toutes les heures, envoyé le lundi vers 8h, une
+// seule fois par semaine (garde-fou en mémoire — suffisant pour un déploiement mono-instance comme
+// celui-ci sur Render ; un redémarrage dans la même heure ne peut jamais déclencher un double envoi
+// puisque le contrôle est horaire, pas plus fréquent).
+const REPORT_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+let lastReportSentWeek = null;
+function isoWeekKey(date) {
+  const onejan = new Date(date.getFullYear(), 0, 1);
+  const week = Math.ceil(((date - onejan) / 86400000 + onejan.getDay() + 1) / 7);
+  return `${date.getFullYear()}-W${week}`;
+}
+function maybeSendWasteReport() {
+  const now = new Date();
+  const key = isoWeekKey(now);
+  if (now.getDay() === 1 && now.getHours() === 8 && lastReportSentWeek !== key) {
+    lastReportSentWeek = key;
+    sendWasteReportEmailsForAllResidences().catch((err) =>
+      console.error("Échec de l'envoi des rapports anti-gaspillage :", err)
+    );
+  }
+}
+if (!process.env.VITEST) {
+  setInterval(maybeSendWasteReport, REPORT_CHECK_INTERVAL_MS);
 }
 
 const httpServer = createServer(app);
