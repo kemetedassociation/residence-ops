@@ -88,3 +88,11 @@ services:
         sync: false
       - key: SMTP_FROM
         value: "Résidence Ops <no-reply@residence-ops.fr>"
+      # Voix d'Isis (chatbot) via Azure AI Speech — facultatif. Sans ces clés, Isis parle
+      # avec la voix native du navigateur (dégradation silencieuse, aucune erreur visible).
+      - key: AZURE_SPEECH_KEY
+        sync: false
+      - key: AZURE_SPEECH_REGION
+        sync: false
+      - key: AZURE_SPEECH_VOICE
+        sync: false

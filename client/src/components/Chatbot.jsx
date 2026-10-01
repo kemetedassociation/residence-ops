@@ -15,8 +15,16 @@ import {
   FALLBACK_REPLY_MANAGER,
 } from "../lib/chatbotKnowledge";
 
-const RESIDENT_SUGGESTIONS = ["Signaler une fuite", "Voir mon solde", "Menu du restaurant", "Réserver un rendez-vous"];
-const MANAGER_SUGGESTIONS = ["Voir les incidents", "Planning des interventions", "Baux en attente", "Statistiques"];
+const RESIDENT_SUGGESTIONS = ["Signaler une fuite", "Voir mon solde", "Parler à un psychologue", "Menu du restaurant"];
+const MANAGER_SUGGESTIONS = ["Voir les incidents", "Gérer les paiements", "Gérer l'équipe", "Statistiques"];
+
+// Isis ne propose jamais, à un gestionnaire restreint, une section qu'il ne peut pas utiliser
+// (même logique que ManagerLayout.jsx : permissions === null signifie accès complet).
+function canSee(user, moduleKey) {
+  if (!moduleKey) return true;
+  if (user?.permissions === null || user?.permissions === undefined) return true;
+  return user.permissions.includes(moduleKey);
+}
 
 export function Chatbot() {
   const { user } = useAuth();
@@ -35,8 +43,8 @@ export function Chatbot() {
   const scrollRef = useRef(null);
   const greetedRef = useRef(false);
 
-  const isManager = user?.role === "manager";
-  const intents = isManager ? MANAGER_INTENTS : RESIDENT_INTENTS;
+  const isManager = user?.role === "manager" || user?.role === "technicien";
+  const intents = isManager ? MANAGER_INTENTS.filter((i) => canSee(user, i.module)) : RESIDENT_INTENTS;
   const fallback = isManager ? FALLBACK_REPLY_MANAGER : FALLBACK_REPLY;
   const suggestions = isManager ? MANAGER_SUGGESTIONS : RESIDENT_SUGGESTIONS;
 
@@ -49,8 +57,8 @@ export function Chatbot() {
       greetedRef.current = true;
       addBotMessage(
         isManager
-          ? "Bonjour, je suis votre assistant. Posez-moi une question ou dites-moi où vous souhaitez aller."
-          : "Bonjour 👋 Je suis votre assistant Résidence Ops. Posez-moi une question ou dites-moi ce que vous cherchez."
+          ? "Bonjour, je suis Isis 👋 Posez-moi une question ou dites-moi où vous souhaitez aller."
+          : "Bonjour 👋 Je suis Isis, votre assistante Résidence Ops. Posez-moi une question ou dites-moi ce que vous cherchez."
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,7 +137,7 @@ export function Chatbot() {
             <div className="hero-gradient flex items-center justify-between px-4 py-3 text-white">
               <div className="flex items-center gap-2">
                 <Bot className="h-5 w-5" />
-                <span className="font-semibold">Assistant</span>
+                <span className="font-semibold">Isis</span>
               </div>
               <div className="flex items-center gap-1">
                 <button

@@ -25,7 +25,7 @@ describe("chatbot intent matching (resident)", () => {
   it("matches accented keywords even without accents in the input", () => {
     // "reserver" (no accent) must still match the "reserver" keyword variants used across intents
     const intent = matchIntent("je veux reserver un rendez vous", RESIDENT_INTENTS);
-    expect(intent.route).toBe("/administration");
+    expect(intent.route).toBe("/administration?tab=rdv");
   });
 });
 

@@ -100,3 +100,31 @@ Chaque membre de l'équipe a son propre compte, limité à son domaine : **Équi
 
 Comptes de démonstration : `manager@residence-ops.fr` (accès complet), `marc.lefevre@residence-ops.fr` / `technicien123`
 (incidents uniquement), `loisirs.demo@residence-ops.fr` / `loisirs-demo-2026` (loisirs uniquement).
+
+## Isis (chatbot) : reconnaissance des fautes de frappe et voix Azure
+
+Le chatbot (bulle en bas à droite, visible uniquement connecté) s'appelle **Isis**. Deux évolutions, aucune ne nécessite
+de configuration pour fonctionner de base :
+
+- **Tolérance aux fautes d'orthographe** : la reconnaissance d'intention (`client/src/lib/chatbotKnowledge.js`) compare
+  chaque mot tapé par distance de Levenshtein (nombre de lettres à changer) plutôt que par correspondance exacte, avec
+  une tolérance proportionnelle à la longueur du mot. Un résident qui écrit « rezervé un rendez vous » ou « je veux
+  signalé une fuite » est compris malgré la faute. Les mots de 1-2 lettres (« a », « ce », « du »...) sont exclus de
+  cette tolérance pour éviter les faux positifs (un mot aussi court ressemble, par hasard, à des dizaines de mots).
+  Fonctionne sans aucune clé ni service externe.
+- **Répertoire élargi** : Isis couvre désormais toutes les sections ajoutées au fil du projet — suivi d'incident, page
+  « Besoin d'aide », installation de l'app, et côté gestionnaire : Accompagnement, Paiements, Équipe et accès, Erreurs,
+  notifications. Chaque intention côté gestionnaire est associée à la permission requise (voir « Comptes administrateurs
+  et permissions » ci-dessus) : Isis ne proposera jamais à un administrateur restreint une section qu'il ne peut pas
+  utiliser.
+- **Voix d'Isis (Azure AI Speech)** : par défaut, Isis parle avec la voix native (robotique) du navigateur. Pour lui
+  donner une voix naturelle, créer une ressource **Azure AI services → Speech** (portail Azure, offre gratuite
+  disponible) et renseigner sur Render :
+  - `AZURE_SPEECH_KEY` : une des clés de la ressource Speech.
+  - `AZURE_SPEECH_REGION` : la région de la ressource (ex. `francecentral`).
+  - `AZURE_SPEECH_VOICE` (facultatif) : nom d'une voix neuronale française, par défaut `fr-FR-DeniseNeural` (liste des
+    voix disponibles dans la documentation Azure AI Speech).
+
+  La clé Azure ne quitte jamais le serveur : le navigateur appelle `/api/assistant/speech`, qui renvoie l'audio déjà
+  généré. Sans ces variables, l'appel échoue silencieusement (503) et Isis bascule sur la voix du navigateur — aucune
+  erreur visible, aucune action requise si vous ne voulez pas configurer Azure.

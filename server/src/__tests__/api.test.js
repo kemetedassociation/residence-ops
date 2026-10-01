@@ -1597,3 +1597,24 @@ describe("Permissions des administrateurs", () => {
     expect(res.body.my_permissions).toBeNull();
   });
 });
+
+describe("Voix d'Isis (synthèse vocale Azure)", () => {
+  const auth = (t) => ({ Authorization: `Bearer ${t}` });
+
+  it("indique qu'elle n'est pas configurée quand les clés Azure sont absentes", async () => {
+    const res = await request(app).get("/api/assistant/speech/config").set(auth(managerToken));
+    expect(res.status).toBe(200);
+    expect(res.body.enabled).toBe(false);
+  });
+
+  it("refuse de synthétiser quand Azure n'est pas configuré, sans faire planter l'app", async () => {
+    const res = await request(app).post("/api/assistant/speech").set(auth(managerToken)).send({ text: "Bonjour" });
+    expect(res.status).toBe(503);
+  });
+
+  it("exige une authentification et un texte valide", async () => {
+    expect((await request(app).post("/api/assistant/speech").send({ text: "Bonjour" })).status).toBe(401);
+    expect((await request(app).post("/api/assistant/speech").set(auth(managerToken)).send({ text: "" })).status).toBe(400);
+    expect((await request(app).post("/api/assistant/speech").set(auth(managerToken)).send({ text: "x".repeat(600) })).status).toBe(400);
+  });
+});

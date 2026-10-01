@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { getToken } from "../lib/api";
 
 function getRecognitionCtor() {
   return typeof window !== "undefined" ? window.SpeechRecognition || window.webkitSpeechRecognition : null;
@@ -16,6 +17,7 @@ export function useSpeech({ lang = "fr-FR" } = {}) {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const recognitionRef = useRef(null);
+  const audioRef = useRef(null);
 
   useEffect(() => {
     if (!isRecognitionSupported) return;
@@ -54,7 +56,9 @@ export function useSpeech({ lang = "fr-FR" } = {}) {
     setIsListening(false);
   }, []);
 
-  const speak = useCallback(
+  // Voix native du navigateur (de secours) — utilisée si la voix d'Isis (Azure) n'est pas
+  // configurée côté serveur, ou si l'appel réseau échoue pour une raison quelconque.
+  const speakNative = useCallback(
     (text) => {
       if (!isSynthesisSupported || !text) return;
       window.speechSynthesis.cancel();
@@ -69,7 +73,51 @@ export function useSpeech({ lang = "fr-FR" } = {}) {
     [isSynthesisSupported, lang]
   );
 
+  // Voix d'Isis : synthétisée côté serveur via Azure AI Speech. Se dégrade silencieusement
+  // vers la voix native si Azure n'est pas configuré (503) ou en cas d'échec réseau.
+  const speak = useCallback(
+    (text) => {
+      if (!text) return;
+      const token = getToken();
+      if (!token) {
+        speakNative(text);
+        return;
+      }
+      audioRef.current?.pause();
+      fetch("/api/assistant/speech", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ text }),
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("speech-unavailable");
+          return res.blob();
+        })
+        .then((blob) => {
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          audioRef.current = audio;
+          audio.onplay = () => setIsSpeaking(true);
+          audio.onended = () => {
+            setIsSpeaking(false);
+            URL.revokeObjectURL(url);
+          };
+          audio.onerror = () => {
+            setIsSpeaking(false);
+            URL.revokeObjectURL(url);
+          };
+          audio.play();
+        })
+        .catch(() => speakNative(text));
+    },
+    [speakNative]
+  );
+
   const stopSpeaking = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
     if (isSynthesisSupported) window.speechSynthesis.cancel();
     setIsSpeaking(false);
   }, [isSynthesisSupported]);
