@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { nanoid } from "nanoid";
 import { db } from "../db/db.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireStaffPermission } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { activityCreateSchema, activityPatchSchema } from "../schemas.js";
 import { residenceIdForUser } from "../lib/residence.js";
@@ -18,7 +18,7 @@ activitiesRouter.get("/", (req, res) => {
   res.json({ activities });
 });
 
-activitiesRouter.post("/", requireRole("manager"), validate(activityCreateSchema), (req, res) => {
+activitiesRouter.post("/", requireStaffPermission("loisirs"), validate(activityCreateSchema), (req, res) => {
   const residenceId = residenceIdForUser(req.userId);
   const activity = {
     id: nanoid(),
@@ -42,7 +42,7 @@ activitiesRouter.post("/", requireRole("manager"), validate(activityCreateSchema
   res.status(201).json({ activity });
 });
 
-activitiesRouter.put("/:id", requireRole("manager"), validate(activityPatchSchema), (req, res) => {
+activitiesRouter.put("/:id", requireStaffPermission("loisirs"), validate(activityPatchSchema), (req, res) => {
   const activity = db.prepare("SELECT * FROM activities WHERE id = ?").get(req.params.id);
   if (!activity) return res.status(404).json({ error: "Activité introuvable." });
 
@@ -55,7 +55,7 @@ activitiesRouter.put("/:id", requireRole("manager"), validate(activityPatchSchem
   res.json({ activity: db.prepare("SELECT * FROM activities WHERE id = ?").get(req.params.id) });
 });
 
-activitiesRouter.delete("/:id", requireRole("manager"), (req, res) => {
+activitiesRouter.delete("/:id", requireStaffPermission("loisirs"), (req, res) => {
   db.prepare("DELETE FROM activities WHERE id = ?").run(req.params.id);
   res.status(204).end();
 });

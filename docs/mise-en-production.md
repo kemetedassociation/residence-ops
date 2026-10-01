@@ -79,3 +79,24 @@ redéploiement sur le plan gratuit Render.
 - Les profils de la démo sont **fictifs** : ils n'existent pas en mode production (`SEED_MODE=production`).
 - Ajout à l'agenda : fichier .ics, Google Agenda, Outlook ; le professionnel peut aussi s'abonner à un agenda partagé (adresse
   secrète, affichée une seule fois). Le titre des événements côté résident est neutre (« Rendez-vous — Nom »).
+
+## Comptes administrateurs et permissions
+
+Chaque membre de l'équipe a son propre compte, limité à son domaine : **Équipe et accès** (menu du gestionnaire).
+
+- **Administrateur principal** (accès complet) : le compte gestionnaire créé au départ. Lui seul peut accorder un accès
+  complet à un autre compte, ou modifier/suspendre/supprimer un autre administrateur à accès complet — pour qu'une
+  personne non habilitée ne puisse jamais se neutraliser mutuellement ou s'auto-promouvoir.
+- **Administrateur restreint** : limité aux modules cochés (Incidents, Actualités, Restaurant, Documents, Rendez-vous,
+  Loisirs, Résidents et baux, Accompagnement, Paiements, Erreurs, Paramètres). Un administrateur restreint ne peut JAMAIS
+  accorder à quelqu'un d'autre une fonctionnalité qu'il ne possède pas lui-même, ni créer un accès complet — même s'il a
+  reçu la permission « Gestion des comptes administrateurs ».
+- **Technicien** : même mécanisme, limité par défaut aux incidents. Se connecte sur le même écran que les gestionnaires
+  (`/admin-login`) et n'y voit que les sections qui lui sont accordées.
+- **Suspendre** un compte coupe l'accès immédiatement (connexion et session en cours), sans supprimer son historique.
+  Impossible de suspendre/supprimer le dernier administrateur à accès complet de la résidence (cela bloquerait tout le
+  monde), ni son propre compte.
+- Les retraits de permission prennent effet immédiatement, sans attendre l'expiration du jeton de connexion (7 jours).
+
+Comptes de démonstration : `manager@residence-ops.fr` (accès complet), `marc.lefevre@residence-ops.fr` / `technicien123`
+(incidents uniquement), `loisirs.demo@residence-ops.fr` / `loisirs-demo-2026` (loisirs uniquement).

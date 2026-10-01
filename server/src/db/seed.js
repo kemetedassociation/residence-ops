@@ -178,6 +178,26 @@ export function seed() {
     lease_status: "none",
     created_at: daysAgo(200),
   });
+  db.prepare("UPDATE users SET permissions = ? WHERE id = ?").run(JSON.stringify(["incidents"]), technicien.id);
+
+  // Démonstration du système de permissions : un administrateur restreint, limité aux loisirs,
+  // pour montrer qu'il ne peut pas toucher aux incidents, aux documents, etc.
+  const loisirsAdmin = { id: nanoid() };
+  insertUser.run({
+    id: loisirsAdmin.id,
+    role: "manager",
+    name: "Sarah Nguyen",
+    email: "loisirs.demo@residence-ops.fr",
+    password: hash("loisirs-demo-2026"),
+    phone: "",
+    residence_id: residenceId,
+    building_id: null,
+    room: "",
+    lease_number: null,
+    lease_status: "none",
+    created_at: daysAgo(10),
+  });
+  db.prepare("UPDATE users SET permissions = ? WHERE id = ?").run(JSON.stringify(["loisirs"]), loisirsAdmin.id);
 
   const incidentFuite = nanoid();
   const incidentElec = nanoid();
@@ -570,7 +590,8 @@ export function seed() {
   });
 
   console.log("Base de données SQLite initialisée avec les données de démo.");
-  console.log("Gestionnaire         : manager@residence-ops.fr / manager123");
+  console.log("Gestionnaire (complet): manager@residence-ops.fr / manager123");
+  console.log("Admin loisirs (démo) : loisirs.demo@residence-ops.fr / loisirs-demo-2026");
   console.log("Résident (vérifié)   : etudiant@residence-ops.fr / resident123");
   console.log("Résident (en attente): sofia.rossi@residence-ops.fr / resident123");
   console.log("Psychologue (démo)   : psy.demo@residence-ops.fr / psychologue-demo-2026");

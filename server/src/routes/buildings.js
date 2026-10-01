@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { nanoid } from "nanoid";
 import { db } from "../db/db.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireStaffPermission } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { buildingCreateSchema, buildingPatchSchema } from "../schemas.js";
 
 export const buildingsRouter = Router();
-buildingsRouter.use(requireAuth, requireRole("manager"));
+buildingsRouter.use(requireAuth, requireStaffPermission("parametres"));
 
 buildingsRouter.post("/", validate(buildingCreateSchema), (req, res) => {
   const residence = db.prepare("SELECT * FROM residences LIMIT 1").get();

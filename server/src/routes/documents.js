@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { nanoid } from "nanoid";
 import { db } from "../db/db.js";
-import { requireAuth, requireRole, requireLease } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireLease , requireStaffPermission } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { documentCreateSchema, documentPatchSchema } from "../schemas.js";
 import { notifyUsers, notifyManagers } from "./notifications.js";
@@ -60,7 +60,7 @@ documentsRouter.post("/", requireRole("resident"), requireLease, validate(docume
   res.status(201).json({ document: doc });
 });
 
-documentsRouter.patch("/:id", requireRole("manager"), validate(documentPatchSchema), (req, res) => {
+documentsRouter.patch("/:id", requireStaffPermission("documents"), validate(documentPatchSchema), (req, res) => {
   const doc = db.prepare("SELECT * FROM document_requests WHERE id = ?").get(req.params.id);
   if (!doc) return res.status(404).json({ error: "Demande introuvable." });
   if (req.body.file_url && !ownsFile(req.body.file_url, req.userId, "manager")) {

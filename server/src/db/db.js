@@ -154,6 +154,19 @@ runMigrations(db);
 export function withoutPassword(user) {
   if (!user) return user;
   const { password, ...rest } = user;
+  // permissions : null = accès complet (administrateur principal) ; sinon tableau JSON de modules.
+  // Exposé uniquement pour les comptes gestionnaire/technicien, pour que l'interface puisse masquer
+  // les sections non autorisées sans attendre un refus du serveur.
+  if ("permissions" in rest && (rest.role === "manager" || rest.role === "technicien")) {
+    try {
+      rest.permissions = rest.permissions == null ? null : JSON.parse(rest.permissions);
+    } catch {
+      rest.permissions = [];
+    }
+  } else {
+    delete rest.permissions;
+  }
+  if ("is_suspended" in rest) rest.is_suspended = !!rest.is_suspended;
   return rest;
 }
 

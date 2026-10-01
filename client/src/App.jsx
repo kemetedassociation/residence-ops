@@ -34,6 +34,7 @@ import { ErrorLog } from "./pages/manager/ErrorLog";
 import { PaymentSettings } from "./pages/manager/PaymentSettings";
 import { Notifications } from "./pages/resident/Notifications";
 import { CareProfessionals } from "./pages/manager/CareProfessionals";
+import { StaffAccess } from "./pages/manager/StaffAccess";
 import { Help } from "./pages/resident/Help";
 import { PsyPortal } from "./pages/psy/PsyPortal";
 import { Settings } from "./pages/manager/Settings";
@@ -221,6 +222,14 @@ export default function App() {
           element={
             <ProtectedRoute role="manager">
               <PaymentSettings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/manager/equipe"
+          element={
+            <ProtectedRoute role="manager">
+              <StaffAccess />
             </ProtectedRoute>
           }
         />

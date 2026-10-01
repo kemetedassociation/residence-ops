@@ -25,6 +25,7 @@ import { activitiesRouter } from "./routes/activities.js";
 import { errorsRouter } from "./routes/errors.js";
 import { filesRouter } from "./routes/files.js";
 import { careRouter } from "./routes/care.js";
+import { staffRouter } from "./routes/staff.js";
 import { paymentsRouter, paymentsCallbacks, stripeWebhook } from "./routes/payments.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -65,6 +66,7 @@ app.use("/api/activities", activitiesRouter);
 app.use("/api/client-errors", errorsRouter);
 app.use("/api/files", filesRouter);
 app.use("/api/care", careRouter);
+app.use("/api/staff", staffRouter);
 app.use("/api/payments", paymentsCallbacks);
 app.use("/api/payments", paymentsRouter);
 

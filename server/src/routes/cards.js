@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../db/db.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireStaffPermission } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { walletCreditSchema } from "../schemas.js";
 import { getOrCreateCard, applyWalletTransaction } from "../lib/wallet.js";
@@ -21,7 +21,7 @@ cardsRouter.get("/me", requireRole("resident"), (req, res) => {
   res.json(withHistory(card));
 });
 
-cardsRouter.get("/:userId", requireRole("manager"), (req, res) => {
+cardsRouter.get("/:userId", requireStaffPermission("utilisateurs"), (req, res) => {
   const user = db.prepare("SELECT id, name, room, building_id FROM users WHERE id = ?").get(req.params.userId);
   if (!user) return res.status(404).json({ error: "Utilisateur introuvable." });
 
@@ -29,7 +29,7 @@ cardsRouter.get("/:userId", requireRole("manager"), (req, res) => {
   res.json({ user, ...withHistory(card) });
 });
 
-cardsRouter.post("/:userId/credit", requireRole("manager"), validate(walletCreditSchema), (req, res) => {
+cardsRouter.post("/:userId/credit", requireStaffPermission("utilisateurs"), validate(walletCreditSchema), (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.params.userId);
   if (!user) return res.status(404).json({ error: "Utilisateur introuvable." });
 

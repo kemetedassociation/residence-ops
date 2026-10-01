@@ -17,7 +17,7 @@ export function AdminLogin() {
   const [loading, setLoading] = useState(false);
 
   if (user) {
-    return <Navigate to={user.role === "manager" ? "/manager" : "/"} replace />;
+    return <Navigate to={user.role === "manager" || user.role === "technicien" ? "/manager" : "/"} replace />;
   }
 
   async function handleSubmit(e) {
@@ -26,7 +26,7 @@ export function AdminLogin() {
     setLoading(true);
     try {
       const loggedInUser = await login(email, password);
-      navigate(loggedInUser.role === "manager" ? "/manager" : "/");
+      navigate(loggedInUser.role === "manager" || loggedInUser.role === "technicien" ? "/manager" : "/");
     } catch (err) {
       setError(err.message);
     } finally {

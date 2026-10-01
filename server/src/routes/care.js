@@ -5,7 +5,7 @@ import rateLimit from "express-rate-limit";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { db } from "../db/db.js";
-import { requireAuth, requireRole, requireCarePro, signCareToken } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireCarePro, signCareToken , requireStaffPermission } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { notifyUsers } from "./notifications.js";
 import { residenceIdForUser } from "../lib/residence.js";
@@ -334,7 +334,7 @@ careRouter.get("/feed/:token", (req, res) => {
 // ---------------------------------------------------------------------------------------------
 // Gestionnaire : tenir l'annuaire. Voit des COMPTEURS, jamais d'identités ni de rendez-vous.
 // ---------------------------------------------------------------------------------------------
-const manager = [requireAuth, requireRole("manager")];
+const manager = [requireAuth, requireStaffPermission("accompagnement")];
 
 const proSchema = z.object({
   name: z.string().trim().min(2).max(120),

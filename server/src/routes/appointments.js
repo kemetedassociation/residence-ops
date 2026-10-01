@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { nanoid } from "nanoid";
 import { db } from "../db/db.js";
-import { requireAuth, requireRole, requireLease } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireLease , requireStaffPermission } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { slotCreateSchema, slotsBulkSchema, appointmentCreateSchema } from "../schemas.js";
 import { notifyUsers } from "./notifications.js";
@@ -21,7 +21,7 @@ slotsRouter.get("/", (req, res) => {
   res.json({ slots });
 });
 
-slotsRouter.post("/", requireRole("manager"), validate(slotCreateSchema), (req, res) => {
+slotsRouter.post("/", requireStaffPermission("rendez_vous"), validate(slotCreateSchema), (req, res) => {
   const slot = {
     id: nanoid(),
     staff_user_id: req.userId,
@@ -40,7 +40,7 @@ slotsRouter.post("/", requireRole("manager"), validate(slotCreateSchema), (req, 
 
 // Plage horaire découpée en créneaux (créée côté client) : les créneaux passés ou qui en chevauchent un
 // existant sont ignorés, pour ne jamais créer deux rendez-vous possibles sur la même heure.
-slotsRouter.post("/bulk", requireRole("manager"), validate(slotsBulkSchema), (req, res) => {
+slotsRouter.post("/bulk", requireStaffPermission("rendez_vous"), validate(slotsBulkSchema), (req, res) => {
   const residenceId = residenceIdForUser(req.userId);
   const now = new Date().toISOString();
   const insert = db.prepare(
@@ -64,7 +64,7 @@ slotsRouter.post("/bulk", requireRole("manager"), validate(slotsBulkSchema), (re
   res.status(201).json({ created, skipped });
 });
 
-slotsRouter.delete("/:id", requireRole("manager"), (req, res) => {
+slotsRouter.delete("/:id", requireStaffPermission("rendez_vous"), (req, res) => {
   const slot = db.prepare("SELECT * FROM availability_slots WHERE id = ?").get(req.params.id);
   if (!slot) return res.status(404).json({ error: "Créneau introuvable." });
   if (slot.is_booked) return res.status(409).json({ error: "Ce créneau est déjà réservé." });

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, withoutPassword } from "../db/db.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireStaffPermission } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { userPatchMeSchema, leaseReviewSchema } from "../schemas.js";
 import { notifyUsers } from "./notifications.js";
@@ -9,7 +9,7 @@ import { getOrCreateCard } from "../lib/wallet.js";
 export const usersRouter = Router();
 usersRouter.use(requireAuth);
 
-usersRouter.get("/", requireRole("manager"), (req, res) => {
+usersRouter.get("/", requireStaffPermission("utilisateurs"), (req, res) => {
   const users = db.prepare("SELECT * FROM users ORDER BY name").all().map(withoutPassword);
   res.json({ users });
 });
@@ -34,7 +34,7 @@ usersRouter.patch("/me", validate(userPatchMeSchema), (req, res) => {
   res.json({ user: withoutPassword(db.prepare("SELECT * FROM users WHERE id = ?").get(req.userId)) });
 });
 
-usersRouter.patch("/:id/lease", requireRole("manager"), validate(leaseReviewSchema), (req, res) => {
+usersRouter.patch("/:id/lease", requireStaffPermission("utilisateurs"), validate(leaseReviewSchema), (req, res) => {
   const user = db.prepare("SELECT * FROM users WHERE id = ?").get(req.params.id);
   if (!user) return res.status(404).json({ error: "Utilisateur introuvable." });
 

@@ -4,7 +4,7 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { db } from "../db/db.js";
-import { requireAuth, requireRole, requireLease } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireLease , requireStaffPermission } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { incidentCreateSchema, incidentPatchSchema } from "../schemas.js";
 import { emitToResidence } from "../realtime.js";
@@ -141,7 +141,7 @@ incidentsRouter.post("/", requireRole("resident"), requireLease, validate(incide
   res.status(201).json({ incident: withPhotos(incident, { id: req.userId, role: req.userRole }) });
 });
 
-incidentsRouter.patch("/:id", requireRole("manager", "technicien"), validate(incidentPatchSchema), (req, res) => {
+incidentsRouter.patch("/:id", requireStaffPermission("incidents"), validate(incidentPatchSchema), (req, res) => {
   const incident = db.prepare("SELECT * FROM incidents WHERE id = ?").get(req.params.id);
   if (!incident) return res.status(404).json({ error: "Incident introuvable." });
 
@@ -206,7 +206,7 @@ incidentsRouter.patch("/:id", requireRole("manager", "technicien"), validate(inc
   res.json({ incident: withPhotos(row, { id: req.userId, role: req.userRole }) });
 });
 
-incidentsRouter.delete("/:id", requireRole("manager"), (req, res) => {
+incidentsRouter.delete("/:id", requireStaffPermission("incidents"), (req, res) => {
   const incident = db.prepare("SELECT * FROM incidents WHERE id = ?").get(req.params.id);
   if (!incident) return res.status(404).json({ error: "Incident introuvable." });
 

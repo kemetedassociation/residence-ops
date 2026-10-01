@@ -4,7 +4,7 @@ import rateLimit from "express-rate-limit";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import { db } from "../db/db.js";
-import { requireAuth, requireRole, JWT_SECRET } from "../middleware/auth.js";
+import { requireAuth, requireRole, JWT_SECRET , requireStaffPermission } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 
 export const errorsRouter = Router();
@@ -48,7 +48,7 @@ errorsRouter.post("/", reportLimiter, validate(reportSchema), (req, res) => {
 
 // Accès gestionnaire uniquement : une vue minimale des erreurs récentes, en attendant un
 // vrai outil de suivi (Sentry ou équivalent) si le volume le justifie un jour.
-errorsRouter.get("/", requireAuth, requireRole("manager"), (req, res) => {
+errorsRouter.get("/", requireAuth, requireStaffPermission("erreurs"), (req, res) => {
   const errors = db.prepare("SELECT * FROM client_errors ORDER BY created_at DESC LIMIT 50").all();
   res.json({ errors });
 });

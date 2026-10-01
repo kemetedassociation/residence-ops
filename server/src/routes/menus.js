@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { nanoid } from "nanoid";
 import { db } from "../db/db.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireStaffPermission } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { menuCreateSchema, menuPatchSchema } from "../schemas.js";
 import { residenceIdForUser } from "../lib/residence.js";
@@ -21,7 +21,7 @@ menusRouter.get("/", (req, res) => {
   res.json({ menus: menus.map(withItems) });
 });
 
-menusRouter.post("/", requireRole("manager"), validate(menuCreateSchema), (req, res) => {
+menusRouter.post("/", requireStaffPermission("restaurant"), validate(menuCreateSchema), (req, res) => {
   const residenceId = residenceIdForUser(req.userId);
   const menu = {
     id: nanoid(),
@@ -48,7 +48,7 @@ menusRouter.post("/", requireRole("manager"), validate(menuCreateSchema), (req, 
   res.status(201).json({ menu: withItems(menu) });
 });
 
-menusRouter.put("/:id", requireRole("manager"), validate(menuPatchSchema), (req, res) => {
+menusRouter.put("/:id", requireStaffPermission("restaurant"), validate(menuPatchSchema), (req, res) => {
   const menu = db.prepare("SELECT * FROM menus WHERE id = ?").get(req.params.id);
   if (!menu) return res.status(404).json({ error: "Menu introuvable." });
 
@@ -62,7 +62,7 @@ menusRouter.put("/:id", requireRole("manager"), validate(menuPatchSchema), (req,
   res.json({ menu: withItems(db.prepare("SELECT * FROM menus WHERE id = ?").get(req.params.id)) });
 });
 
-menusRouter.delete("/:id", requireRole("manager"), (req, res) => {
+menusRouter.delete("/:id", requireStaffPermission("restaurant"), (req, res) => {
   db.prepare("DELETE FROM menus WHERE id = ?").run(req.params.id);
   res.status(204).end();
 });

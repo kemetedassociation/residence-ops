@@ -73,6 +73,9 @@ authRouter.post("/login", authLimiter, validate(loginSchema), (req, res) => {
   if (!user || !bcrypt.compareSync(password, user.password)) {
     return res.status(401).json({ error: "Identifiants incorrects." });
   }
+  if (user.is_suspended) {
+    return res.status(401).json({ error: "Ce compte a été suspendu. Contactez l'administrateur principal." });
+  }
 
   const token = signToken(user);
   res.json({ token, user: withoutPassword(user) });

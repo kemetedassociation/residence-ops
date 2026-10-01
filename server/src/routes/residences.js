@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../db/db.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireStaffPermission } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { residencePatchSchema } from "../schemas.js";
 
@@ -13,7 +13,7 @@ residencesRouter.get("/", (req, res) => {
   });
 });
 
-residencesRouter.put("/:id", requireAuth, requireRole("manager"), validate(residencePatchSchema), (req, res) => {
+residencesRouter.put("/:id", requireAuth, requireStaffPermission("parametres"), validate(residencePatchSchema), (req, res) => {
   const residence = db.prepare("SELECT * FROM residences WHERE id = ?").get(req.params.id);
   if (!residence) return res.status(404).json({ error: "Résidence introuvable." });
 

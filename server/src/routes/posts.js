@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { nanoid } from "nanoid";
 import { db } from "../db/db.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireStaffPermission } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { postCreateSchema, postPatchSchema } from "../schemas.js";
 import { emitToResidence } from "../realtime.js";
@@ -28,7 +28,7 @@ postsRouter.get("/", (req, res) => {
   res.json({ posts: sortPosts(posts) });
 });
 
-postsRouter.post("/", requireRole("manager"), validate(postCreateSchema), (req, res) => {
+postsRouter.post("/", requireStaffPermission("actualites"), validate(postCreateSchema), (req, res) => {
   const { title, content, category, pinned, published, cover_image_url } = req.body;
   const now = new Date().toISOString();
   const post = {
@@ -64,7 +64,7 @@ postsRouter.post("/", requireRole("manager"), validate(postCreateSchema), (req, 
   res.status(201).json({ post: full });
 });
 
-postsRouter.put("/:id", requireRole("manager"), validate(postPatchSchema), (req, res) => {
+postsRouter.put("/:id", requireStaffPermission("actualites"), validate(postPatchSchema), (req, res) => {
   const post = db.prepare("SELECT * FROM posts WHERE id = ?").get(req.params.id);
   if (!post) return res.status(404).json({ error: "Actualité introuvable." });
 
@@ -85,7 +85,7 @@ postsRouter.put("/:id", requireRole("manager"), validate(postPatchSchema), (req,
   res.json({ post: full });
 });
 
-postsRouter.delete("/:id", requireRole("manager"), (req, res) => {
+postsRouter.delete("/:id", requireStaffPermission("actualites"), (req, res) => {
   db.prepare("DELETE FROM posts WHERE id = ?").run(req.params.id);
   emitToResidence(residenceIdForUser(req.userId), "post:deleted", { id: req.params.id });
   res.status(204).end();

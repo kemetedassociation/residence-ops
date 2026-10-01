@@ -18,29 +18,40 @@ import {
   CreditCard,
   HeartHandshake,
   Bell,
+  ShieldCheck,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { api } from "../lib/api";
 import { useBranding } from "../context/BrandingContext";
 
+// `module` relie chaque page à une permission (voir server/src/middleware/auth.js, STAFF_MODULES) :
+// sans elle, l'entrée est masquée. `null` = toujours visible (lecture ouverte à tous les comptes
+// gestionnaire/technicien, aucune permission à vérifier).
 const navItems = [
-  { to: "/manager", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/manager/notifications", label: "Notifications", icon: Bell, badge: true },
-  { to: "/manager/incidents", label: "Incidents", icon: ListChecks },
-  { to: "/manager/planning", label: "Planning", icon: CalendarClock },
-  { to: "/manager/analytics", label: "Analytics", icon: BarChart3 },
-  { to: "/manager/actualites", label: "Actualités", icon: Newspaper },
-  { to: "/manager/restaurant", label: "Restaurant", icon: UtensilsCrossed },
-  { to: "/manager/documents", label: "Documents", icon: FileText },
-  { to: "/manager/rendez-vous", label: "Rendez-vous", icon: CalendarCheck },
-  { to: "/manager/loisirs", label: "Loisirs", icon: PartyPopper },
-  { to: "/manager/utilisateurs", label: "Utilisateurs", icon: Users },
-  { to: "/manager/accompagnement", label: "Accompagnement", icon: HeartHandshake },
-  { to: "/manager/paiements", label: "Paiements", icon: CreditCard },
-  { to: "/manager/erreurs", label: "Erreurs", icon: AlertTriangle },
-  { to: "/manager/parametres", label: "Paramètres", icon: SettingsIcon },
+  { to: "/manager", label: "Dashboard", icon: LayoutDashboard, end: true, module: null },
+  { to: "/manager/notifications", label: "Notifications", icon: Bell, badge: true, module: null },
+  { to: "/manager/incidents", label: "Incidents", icon: ListChecks, module: "incidents" },
+  { to: "/manager/planning", label: "Planning", icon: CalendarClock, module: "incidents" },
+  { to: "/manager/analytics", label: "Analytics", icon: BarChart3, module: null },
+  { to: "/manager/actualites", label: "Actualités", icon: Newspaper, module: "actualites" },
+  { to: "/manager/restaurant", label: "Restaurant", icon: UtensilsCrossed, module: "restaurant" },
+  { to: "/manager/documents", label: "Documents", icon: FileText, module: "documents" },
+  { to: "/manager/rendez-vous", label: "Rendez-vous", icon: CalendarCheck, module: "rendez_vous" },
+  { to: "/manager/loisirs", label: "Loisirs", icon: PartyPopper, module: "loisirs" },
+  { to: "/manager/utilisateurs", label: "Utilisateurs", icon: Users, module: "utilisateurs" },
+  { to: "/manager/accompagnement", label: "Accompagnement", icon: HeartHandshake, module: "accompagnement" },
+  { to: "/manager/paiements", label: "Paiements", icon: CreditCard, module: "paiements" },
+  { to: "/manager/equipe", label: "Équipe et accès", icon: ShieldCheck, module: "gestion_comptes" },
+  { to: "/manager/erreurs", label: "Erreurs", icon: AlertTriangle, module: "erreurs" },
+  { to: "/manager/parametres", label: "Paramètres", icon: SettingsIcon, module: "parametres" },
 ];
+
+function canSee(user, moduleKey) {
+  if (!moduleKey) return true;
+  if (user?.permissions === null || user?.permissions === undefined) return true; // accès complet
+  return user.permissions.includes(moduleKey);
+}
 
 export function ManagerLayout() {
   const { user, logout } = useAuth();
@@ -51,6 +62,7 @@ export function ManagerLayout() {
     queryFn: () => api.get("/notifications").then((d) => d.notifications),
   });
   const unread = notifications.filter((n) => !n.is_read).length;
+  const visibleItems = navItems.filter((item) => canSee(user, item.module));
 
   function handleLogout() {
     logout();
@@ -67,7 +79,7 @@ export function ManagerLayout() {
           <span className="truncate font-semibold">{displayName}</span>
         </div>
         <nav className="flex-1 space-y-1 px-3">
-          {navItems.map(({ to, label, icon: Icon, end, badge }) => (
+          {visibleItems.map(({ to, label, icon: Icon, end, badge }) => (
             <NavLink
               key={to}
               to={to}

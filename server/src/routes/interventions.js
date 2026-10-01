@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { nanoid } from "nanoid";
 import { db } from "../db/db.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireStaffPermission } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { interventionCreateSchema, interventionPatchSchema } from "../schemas.js";
 import { emitToResidence } from "../realtime.js";
@@ -9,14 +9,14 @@ import { residenceIdForBuilding } from "../lib/residence.js";
 import { notifyUsers, notifyBuilding } from "./notifications.js";
 
 export const interventionsRouter = Router();
-interventionsRouter.use(requireAuth, requireRole("manager", "technicien"));
+interventionsRouter.use(requireAuth, requireStaffPermission("incidents"));
 
 interventionsRouter.get("/", (req, res) => {
   const interventions = db.prepare("SELECT * FROM interventions ORDER BY scheduled_date ASC").all();
   res.json({ interventions });
 });
 
-interventionsRouter.post("/", requireRole("manager"), validate(interventionCreateSchema), (req, res) => {
+interventionsRouter.post("/", requireStaffPermission("incidents"), validate(interventionCreateSchema), (req, res) => {
   const { incident_id, technician_id, scheduled_date, notes } = req.body;
 
   const incident = db.prepare("SELECT * FROM incidents WHERE id = ?").get(incident_id);

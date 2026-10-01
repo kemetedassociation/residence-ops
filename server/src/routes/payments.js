@@ -3,7 +3,7 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
 import { db } from "../db/db.js";
-import { requireAuth, requireRole, requireLease } from "../middleware/auth.js";
+import { requireAuth, requireRole, requireLease , requireStaffPermission } from "../middleware/auth.js";
 import { validate } from "../middleware/validate.js";
 import { getOrCreateCard } from "../lib/wallet.js";
 import { PROVIDERS, loadConfig, enabledProviders, saveSettings, createCheckout, refreshPayment, settle } from "../lib/payments/core.js";
@@ -158,7 +158,7 @@ paymentsRouter.get("/status", async (req, res) => {
 // ---------------------------------------------------------------------------------------------
 // Réglages administrateur : quels moyens de paiement proposer, avec quelles clés.
 // ---------------------------------------------------------------------------------------------
-paymentsRouter.get("/settings", requireRole("manager"), (req, res) => {
+paymentsRouter.get("/settings", requireStaffPermission("paiements"), (req, res) => {
   const base = baseUrlFor(req);
   res.json({
     providers: Object.values(PROVIDERS).map((p) => {
@@ -207,7 +207,7 @@ function blockInDemoMode(req, res, next) {
   next();
 }
 
-paymentsRouter.put("/settings/:provider", requireRole("manager"), blockInDemoMode, validate(settingsSchema), (req, res) => {
+paymentsRouter.put("/settings/:provider", requireStaffPermission("paiements"), blockInDemoMode, validate(settingsSchema), (req, res) => {
   if (!PROVIDERS[req.params.provider]) return res.status(404).json({ error: "Moyen de paiement inconnu." });
   try {
     saveSettings(req.params.provider, req.body);
@@ -217,7 +217,7 @@ paymentsRouter.put("/settings/:provider", requireRole("manager"), blockInDemoMod
   }
 });
 
-paymentsRouter.post("/settings/:provider/test", requireRole("manager"), async (req, res) => {
+paymentsRouter.post("/settings/:provider/test", requireStaffPermission("paiements"), async (req, res) => {
   const provider = PROVIDERS[req.params.provider];
   if (!provider) return res.status(404).json({ error: "Moyen de paiement inconnu." });
   const { config, configured } = loadConfig(provider.id);
@@ -231,7 +231,7 @@ paymentsRouter.post("/settings/:provider/test", requireRole("manager"), async (r
 });
 
 // Rapprochement manuel : relit chez chaque prestataire les paiements restés « en attente ».
-paymentsRouter.post("/reconcile", requireRole("manager"), async (req, res) => {
+paymentsRouter.post("/reconcile", requireStaffPermission("paiements"), async (req, res) => {
   const pending = db.prepare("SELECT id FROM payments WHERE status = 'pending' AND created_at > ?").all(new Date(Date.now() - 3 * 86400000).toISOString());
   let credited = 0;
   for (const { id } of pending) {
