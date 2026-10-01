@@ -51,7 +51,11 @@ function wordsMatch(a, b) {
 }
 
 function phraseMatches(inputWords, phrase) {
-  const phraseWords = normalize(phrase).split(" ").filter(Boolean);
+  // Les apostrophes ("d'aide", "l'app") deviennent des mots orphelins d'une lettre ("d", "l") une
+  // fois normalisées : on les ignore, sinon la phrase exigerait une lettre isolée qu'un utilisateur
+  // n'écrivant pas l'apostrophe ne tapera jamais.
+  const phraseWords = normalize(phrase).split(" ").filter((w) => w.length > 1);
+  if (phraseWords.length === 0) return false;
   return phraseWords.every((pw) => inputWords.some((iw) => wordsMatch(iw, pw)));
 }
 
@@ -82,7 +86,7 @@ export const RESIDENT_INTENTS = [
   {
     id: "signaler",
     keywords: [
-      "signaler", "signalement", "fuite", "panne", "probleme", "incident", "casse", "cassee",
+      "signaler un incident", "signaler", "fuite", "panne", "probleme", "incident", "casse", "cassee",
       "electricite", "bruit", "securite", "reparation", "ca fuit", "plafond", "eau", "chauffage",
       "ca marche pas", "ca ne fonctionne pas", "serrure", "porte cassee",
     ],
@@ -94,7 +98,8 @@ export const RESIDENT_INTENTS = [
     id: "suivi-incident",
     keywords: [
       "suivi de mon signalement", "ou en est mon incident", "statut de mon signalement", "mes signalements",
-      "avancement", "resolu", "mon probleme est il regle",
+      "avancement", "resolu", "mon probleme est il regle", "ou en est", "mon signalement", "suivi du signalement",
+      "a-t-on traite mon signalement",
     ],
     route: "/",
     routeLabel: "Accueil — suivi des signalements",
