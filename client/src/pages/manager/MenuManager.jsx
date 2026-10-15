@@ -123,6 +123,8 @@ export function MenuManager() {
   const wasteRemaining = wasteDialog?.item.remaining ?? 0;
   const wasteSavedNum = Math.min(wasteRemaining, Math.max(0, Number(savedInput) || 0));
   const wasteLostComputed = Math.max(0, wasteRemaining - wasteSavedNum);
+  const hasCapacityTracking = menus.some((m) => m.items.some((it) => it.max_portions != null));
+  const hasWasteData = wasteStats && (wasteStats.total_saved > 0 || wasteStats.total_lost > 0);
 
   return (
     <div className="space-y-6">
@@ -207,7 +209,21 @@ export function MenuManager() {
         </Dialog>
       </div>
 
-      {wasteStats && (wasteStats.total_saved > 0 || wasteStats.total_lost > 0) && (
+      {!hasCapacityTracking ? (
+        <Card className="border-dashed">
+          <CardContent className="flex items-start gap-3 p-4">
+            <Leaf className="mt-0.5 h-5 w-5 shrink-0 text-status-resolved" />
+            <div>
+              <p className="text-sm font-medium">Suivi anti-gaspillage non activé</p>
+              <p className="text-sm text-muted-foreground">
+                Aucun plat n'a de quantité préparée définie pour l'instant. Modifiez un menu (icône crayon) et
+                renseignez un nombre de « portions préparées » sur un plat pour activer le suivi en temps réel des
+                portions restantes et le bilan sauvé/perdu.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
@@ -218,40 +234,47 @@ export function MenuManager() {
           <CardContent className="flex flex-wrap items-center gap-6">
             <div className="flex gap-6">
               <div>
-                <p className="text-2xl font-bold text-status-resolved">{wasteStats.total_saved}</p>
+                <p className="text-2xl font-bold text-status-resolved">{wasteStats?.total_saved ?? 0}</p>
                 <p className="text-xs text-muted-foreground">Portions sauvées</p>
               </div>
               <div>
-                <p className="text-2xl font-bold text-status-urgent">{wasteStats.total_lost}</p>
+                <p className="text-2xl font-bold text-status-urgent">{wasteStats?.total_lost ?? 0}</p>
                 <p className="text-xs text-muted-foreground">Portions perdues</p>
               </div>
-              {wasteStats.rate != null && (
+              {wasteStats?.rate != null && (
                 <div>
                   <p className="text-2xl font-bold">{Math.round(wasteStats.rate * 100)}%</p>
                   <p className="text-xs text-muted-foreground">Taux de sauvegarde</p>
                 </div>
               )}
             </div>
-            <div className="h-32 w-32">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: "Sauvé", value: wasteStats.total_saved },
-                      { name: "Perdu", value: wasteStats.total_lost },
-                    ]}
-                    dataKey="value"
-                    innerRadius={28}
-                    outerRadius={48}
-                  >
-                    <Cell fill="#22c55e" />
-                    <Cell fill="#ef4444" />
-                  </Pie>
-                  <Tooltip />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+            {hasWasteData ? (
+              <div className="h-32 w-32">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={[
+                        { name: "Sauvé", value: wasteStats.total_saved },
+                        { name: "Perdu", value: wasteStats.total_lost },
+                      ]}
+                      dataKey="value"
+                      innerRadius={28}
+                      outerRadius={48}
+                    >
+                      <Cell fill="#22c55e" />
+                      <Cell fill="#ef4444" />
+                    </Pie>
+                    <Tooltip />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Aucun bilan enregistré pour l'instant — utilisez le bouton « Bilan » sur un plat à quota après le
+                service.
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
